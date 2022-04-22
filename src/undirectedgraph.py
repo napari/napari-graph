@@ -143,7 +143,7 @@ class UndirectedGraphBufferLLArray(UndirectedGraphBuffer):
     """Undirected graph with buffer and linked lists from array for edges.
         Inspired by: https://github.com/mastodon-sc/mastodon/blob/master/doc/trackmate-graph.pdf
 
-        NOTE: when implementing the function to remove edges both of the pair should be remove too
+        NOTE: don't forget to remove the pair of edges when implementing the function to remove edges.
     """
     def _create_edges(self, n_nodes: int, edges: Union[np.ndarray, List[Tuple[int, int]]]) -> np.ndarray:
         size = len(edges) * 2 * EDGE_SIZE   # 2 (because the edges are duplicated to make it undirected)
