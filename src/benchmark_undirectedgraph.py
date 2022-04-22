@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 import networkx as nx
 
-from undirectedgraph import UndirectedGraph
+from undirectedgraph import UndirectedGraph, UndirectedGraphBuffer, UndirectedGraphBufferLLArray
 
 
 def random_graph(size: int, sparsity: float) -> Tuple[pd.DataFrame, np.ndarray]:
@@ -44,10 +44,22 @@ def main() -> None:
     sparsity = 0.005
 
     setup = f'df, edges = random_graph({size}, {sparsity}); graph = UndirectedGraph()'
-    func = 'graph.from_dataframe(df, ["z", "y", "x"], edges)'
+    ugraph = 'graph.from_dataframe(df, ["z", "y", "x"], edges)'
+    bgraph = 'bgraph = UndirectedGraphBuffer(len(df), 3); bgraph.from_dataframe(df, ["z", "y", "x"], edges)'
+    bllgraph = 'bllgraph = UndirectedGraphBufferLLArray(len(df), 3); bllgraph.from_dataframe(df, ["z", "y", "x"], edges)'
     
     timer = timeit.timeit(
-        func, setup=setup, globals=globals(), number=100,
+        bllgraph, setup=setup, globals=globals(), number=100,
+    )
+    print('bll: from_dataframe', timer)
+
+    timer = timeit.timeit(
+        bgraph, setup=setup, globals=globals(), number=100,
+    )
+    print('b: from_dataframe', timer)
+
+    timer = timeit.timeit(
+        ugraph, setup=setup, globals=globals(), number=100,
     )
     print('from_dataframe', timer)
 
@@ -57,7 +69,7 @@ def main() -> None:
     print('from_networkx', timer)
 
     timer = timeit.timeit(
-        'graph.to_networkx()', setup=f'{setup};{func}', globals=globals(), number=100,
+        'graph.to_networkx()', setup=f'{setup};{ugraph}', globals=globals(), number=100,
     )
     print('ours_to_networkx', timer)
  
