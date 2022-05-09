@@ -58,11 +58,30 @@ def test_undirected_init_from_dataframe(n_prealloc_edges: int) -> None:
 def test_benchmark_construction_speed() -> None:
     # FIXME: remove this, maybe create an airspeed velocity CI
     from timeit import default_timer
+    import networkx as nx
+
     nodes_df, edges = make_graph(100000, 0.0005)
 
     print('# edges', len(edges))
+
     start = default_timer()
     graph = UndirectedGraph(n_nodes=nodes_df.shape[0], ndim=nodes_df.shape[1], n_edges=len(edges))
     graph.init_nodes_from_dataframe(nodes_df, ["z", "y", "x"])
+
+    alloc_time = default_timer() 
+    print('our alloc time', alloc_time - start)
+
     graph.add_edges(edges)
-    print('init time', default_timer() - start)
+    end = default_timer()
+
+    print('our add edge time', end - alloc_time)
+    print('our total time', end - start)
+
+    start = default_timer()
+
+    graph = nx.Graph()
+    graph.add_nodes_from(nodes_df.to_dict('index').items())
+    graph.add_edges_from(edges)
+
+    print('networkx init time', default_timer() - start)
+
