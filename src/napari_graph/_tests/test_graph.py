@@ -57,12 +57,12 @@ def test_undirected_init_from_dataframe(n_prealloc_edges: int) -> None:
 
 def test_benchmark_construction_speed() -> None:
     # FIXME: remove this, maybe create an airspeed velocity CI
-    import time
-    nodes_df, edges = make_graph(20000, 0.01)
+    from timeit import default_timer
+    nodes_df, edges = make_graph(100000, 0.0005)
 
     print('# edges', len(edges))
-    start = time.time()
+    start = default_timer()
     graph = UndirectedGraph(n_nodes=nodes_df.shape[0], ndim=nodes_df.shape[1], n_edges=len(edges))
     graph.init_nodes_from_dataframe(nodes_df, ["z", "y", "x"])
     graph.add_edges(edges)
-    print('init time', time.time() - start)
+    print('init time', default_timer() - start)

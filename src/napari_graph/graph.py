@@ -7,9 +7,6 @@ import pandas as pd
 from numba import njit, typed
 from numba.core import types
 
-from undirectedgraph import EDGE_SIZE
-
-
 # Numba constants have to be outside classes
 
 _EDGE_SIZE = 3
