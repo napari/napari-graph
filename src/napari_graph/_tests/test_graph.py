@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 from typing import Tuple
 
-from napari_graph.graph import UndirectedGraph
+from napari_graph.graph import UndirectedGraph, DirectedGraph
 
 
 def make_graph(size: int, sparsity: float) -> Tuple[pd.DataFrame, np.ndarray]:
@@ -51,6 +51,33 @@ def test_undirected_init_from_dataframe(n_prealloc_edges: int) -> None:
         # checking if the edges are corrected
         for edge in node_edges:
             assert sorted(edge) in edges
+
+
+@pytest.mark.parametrize("n_prealloc_edges", [0, 2, 5])
+def test_directed_init_from_dataframe(n_prealloc_edges: int) -> None:
+    nodes_df = pd.DataFrame(
+        [[0, 2.5],
+         [4, 2.5],
+         [1, 0,],
+         [2, 3.5],
+         [3, 0]],
+        columns=["y", "x"],
+    )
+
+    edges = np.asarray(
+        [[0, 1],
+        [1, 2],
+        [2, 3],
+        [3, 4],
+        [4, 0]]
+    )
+    
+    graph = DirectedGraph(n_nodes=nodes_df.shape[0], ndim=nodes_df.shape[1], n_edges=n_prealloc_edges)
+
+    graph.init_nodes_from_dataframe(nodes_df, ["y", "x"])
+    graph.add_edges(edges)
+    
+    assert np.all(np.asarray(graph.source_edges(nodes_df.index)) == edges[:, np.newaxis, :])
 
 
 def test_benchmark_construction_speed() -> None:

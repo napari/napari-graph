@@ -177,13 +177,25 @@ def _iterate_undirected_edges(edge_ptr_indices: np.ndarray, edges_buffer: np.nda
 
 
 @njit
-def _iterate_directed_source_edges(edge_ptr_idx: int, edges_buffer: np.ndarray) -> typed.List:
+def _iterate_directed_source_edges(edge_ptr_indices: np.ndarray, edges_buffer: np.ndarray) -> typed.List:
     """TODO: doc"""
-    pass
+    edges_list = typed.List()
+
+    for idx in edge_ptr_indices:
+        edges = typed.List.empty_list(types.int64)
+        edges_list.append(edges)
+
+        while idx != _EDGE_EMPTY_PTR:
+            buffer_idx = idx * _DI_EDGE_SIZE
+            edges.append(edges_buffer[buffer_idx])      # src
+            edges.append(edges_buffer[buffer_idx + 1])  # tgt
+            idx = edges_buffer[buffer_idx + _LL_DI_EDGE_POS]
+    
+    return edges_list
 
 
 @njit
-def _iterate_directed_target_edges(edge_ptr_idx: int, edges_buffer: np.ndarray) -> typed.List:
+def _iterate_directed_target_edges(edge_ptr_indices: np.ndarray, edges_buffer: np.ndarray) -> typed.List:
     """TODO: doc"""
     pass
 
@@ -379,7 +391,7 @@ class BaseGraph:
             self._edges_buffer,
         )
         return [
-            self._buffer2world[e].reshape(-1, 2)
+            self._buffer2world[e].reshape(-1, 2) if len(e) > 0 else np.empty((0,2))
             for e in flat_edges
         ]
 
@@ -422,16 +434,18 @@ class DirectedGraph(BaseGraph):
             self._empty_edge_idx,
             self._n_edges,
             self._node2edges,
+            np.full_like(self._node2edges, fill_value=-1),  # FIXME
         )
  
     def source_edges(self, node_indices: ArrayLike) -> List[np.ndarray]:
         return self._iterate_edges(
             node_indices,
-            node2edges=self._node2src_edges,
+            node2edges=self._node2edges,
             iterate_edges_func=_iterate_directed_source_edges,
         )
 
     def target_edges(self, node_indices: ArrayLike) -> List[np.ndarray]:
+        # FIXME: add node2tgt_edges buffer
         return self._iterate_edges(
             node_indices,
             node2edges=self._node2tgt_edges,
