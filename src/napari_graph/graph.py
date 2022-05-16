@@ -1,11 +1,11 @@
 
-from typing import Dict, List, Tuple, Union, Callable
+from typing import Dict, List, Tuple, Callable
 from numpy.typing import ArrayLike
 
 import numpy as np
 import pandas as pd
 
-from numba import njit, typed
+from numba import njit, typed, prange
 from numba.core import types
 
 # Numba constants have to be outside classes :(
@@ -197,7 +197,19 @@ def _iterate_directed_source_edges(edge_ptr_indices: np.ndarray, edges_buffer: n
 @njit
 def _iterate_directed_target_edges(edge_ptr_indices: np.ndarray, edges_buffer: np.ndarray) -> typed.List:
     """TODO: doc"""
-    pass
+    edges_list = typed.List()
+
+    for idx in edge_ptr_indices:
+        edges = typed.List.empty_list(types.int64)
+        edges_list.append(edges)
+
+        while idx != _EDGE_EMPTY_PTR:
+            buffer_idx = idx * _DI_EDGE_SIZE
+            edges.append(edges_buffer[buffer_idx])      # src
+            edges.append(edges_buffer[buffer_idx + 1])  # tgt
+            idx = edges_buffer[buffer_idx + _LL_DI_EDGE_POS + 1]
+    
+    return edges_list
 
 
 ##############################
@@ -217,13 +229,13 @@ def _create_world2buffer_map(world_idx: np.ndarray) -> typed.Dict:
     return world2buffer
 
 
-@njit
+@njit(parallel=True)  # TODO: benchmark if parallel is worth it
 def _vmap_world2buffer(world2buffer: typed.Dict, world_idx: np.ndarray) -> typed.Dict:
     """
     Maps world indices to buffer indices.
     """
     buffer_idx = np.empty(world_idx.shape[0], dtype=types.int64)
-    for i in range(world_idx.shape[0]):
+    for i in prange(world_idx.shape[0]):
         buffer_idx[i] = world2buffer[world_idx[i]]
     return buffer_idx
 
@@ -248,7 +260,7 @@ class BaseGraph:
         self._empty_edge_idx = 0 if n_edges > 0 else _EDGE_EMPTY_PTR
         self._n_edges = 0
 
-        self._edges_buffer = np.full(n_edges * self._EDGE_DUPLICATION * self._EDGE_SIZE, fill_value=-1, dtype=int)
+        self._edges_buffer = np.full(n_edges * self._EDGE_DUPLICATION * self._EDGE_SIZE, fill_value=_EDGE_EMPTY_PTR, dtype=int)
         self._edges_buffer[self._LL_EDGE_POS : -self._EDGE_SIZE :self._EDGE_SIZE] = np.arange(1, self._EDGE_DUPLICATION * n_edges)
 
         self._world2buffer = typed.Dict.empty(types.int64, types.int64)
@@ -269,13 +281,13 @@ class BaseGraph:
         if  n_nodes > self._coords.shape[0] or len(coordinates_columns) != self._coords.shape[1]:
             self._coords = nodes_df[coordinates_columns].values.astype(np.float32, copy=True)
             self._active = np.ones(n_nodes, dtype=bool)
-            self._node2edges = np.full(n_nodes, fill_value=_EDGE_EMPTY_PTR, dtype=int)
+            self._node2edges = np.full(n_nodes, fill_value=self._NODE_EMPTY_PTR, dtype=int)
             self._buffer2world = nodes_df.index.values.astype(np.uint64, copy=True)
             self._empty_nodes = []
         else:
             self._coords[:n_nodes] = nodes_df[coordinates_columns].values
-            self._active[:n_nodes] = True
-            self._node2edges[:n_nodes] = _EDGE_EMPTY_PTR
+            self._active.fill(True)
+            self._node2edges.fill(self._NODE_EMPTY_PTR)
             self._buffer2world[:n_nodes] = nodes_df.index.values
             self._empty_nodes = list(reversed(range(n_nodes, len(self._active))))  # reversed so we add nodes to the end of it
 
@@ -286,9 +298,9 @@ class BaseGraph:
         #  - feats should be indexed by their pandas DataFrame index (world index)
         self._feats = nodes_df.drop(coordinates_columns, axis=1)
 
-    def add_node(self, coords: np.ndarray, features: Dict = {}) -> int:
-        # TODO: doc
-        pass
+    def add_node(self, index: int, coords: np.ndarray, features: Dict = {}) -> None:
+        # TODO
+        raise NotImplementedError
     
     def _realloc_edges_buffer(self, n_edges: int) -> None:
         # TODO: doc
@@ -329,11 +341,8 @@ class BaseGraph:
     def n_edges(self) -> int:
         return self._n_edges
 
-    def _validate_edge_addition(self, edges: Union[np.ndarray, List[Tuple[int, int]]]) -> np.ndarray:
-        edges = np.asarray(edges)
-
-        if edges.ndim == 1:
-            edges = edges[np.newaxis, ...]
+    def _validate_edge_addition(self, edges: ArrayLike) -> np.ndarray:
+        edges = np.atleast_2d(edges)
 
         if edges.ndim != 2:
             raise ValueError(f"Edges must be 1- or 2-dimensional. Found {edges.ndim}-dimensional.")
@@ -350,7 +359,7 @@ class BaseGraph:
         """Abstract method, different implementation for undirected and directed graph."""
         raise NotImplementedError
 
-    def add_edges(self, edges: Union[np.ndarray, List[Tuple[int, int]]]) -> np.ndarray:
+    def add_edges(self, edges: ArrayLike) -> np.ndarray:
         # TODO: 
         #   - doc
         #   - edges features
@@ -363,14 +372,6 @@ class BaseGraph:
         buffer_idx = _vmap_world2buffer(self._world2buffer, world_idx.reshape(-1))
         return buffer_idx.reshape(shape)
 
-    def edges(self, node_indices: np.ndarray) -> List[int]:
-        """
-        FIXME:
-            - Should we keep this method on the base class?
-              For directed graph we would have to map this to source or target edges
-        """
-        raise NotImplementedError
-
     def _iterate_edges(
         self,
         node_indices: ArrayLike,
@@ -378,9 +379,7 @@ class BaseGraph:
         iterate_edges_func: Callable[[np.ndarray, np.ndarray], List[np.ndarray]],
     ) -> List[np.ndarray]:
         """
-        TODO:
-            - doc
-            - implement numba version that iterates multiple nodes' edges in a single call.
+        TODO: doc
         """
         node_indices = np.atleast_1d(node_indices)
         if node_indices.ndim > 1:
@@ -427,6 +426,22 @@ class DirectedGraph(BaseGraph):
     _EDGE_SIZE = _DI_EDGE_SIZE
     _LL_EDGE_POS = _LL_DI_EDGE_POS
 
+    def __init__(self, n_nodes: int, ndim: int, n_edges: int):
+        super().__init__(n_nodes, ndim, n_edges)
+        self._node2tgt_edges = np.full(n_nodes, fill_value=self._NODE_EMPTY_PTR, dtype=int)
+
+    def init_nodes_from_dataframe(
+        self,
+        nodes_df: pd.DataFrame,
+        coordinates_columns: List[str],
+    ) -> None:
+        super().init_nodes_from_dataframe(nodes_df, coordinates_columns)
+        n_nodes = len(nodes_df)
+        if len(self._node2tgt_edges) < n_nodes:
+            self._node2tgt_edges = np.full(n_nodes, fill_value=self._NODE_EMPTY_PTR, dtype=int)
+        else:
+            self._node2tgt_edges.fill(self._NODE_EMPTY_PTR)
+
     def _add_edges(self, edges: np.ndarray) -> None:
         self._empty_edge_idx, self._n_edges = _add_directed_edges(
             self._edges_buffer,
@@ -434,7 +449,7 @@ class DirectedGraph(BaseGraph):
             self._empty_edge_idx,
             self._n_edges,
             self._node2edges,
-            np.full_like(self._node2edges, fill_value=-1),  # FIXME
+            self._node2tgt_edges,
         )
  
     def source_edges(self, node_indices: ArrayLike) -> List[np.ndarray]:
@@ -445,7 +460,6 @@ class DirectedGraph(BaseGraph):
         )
 
     def target_edges(self, node_indices: ArrayLike) -> List[np.ndarray]:
-        # FIXME: add node2tgt_edges buffer
         return self._iterate_edges(
             node_indices,
             node2edges=self._node2tgt_edges,

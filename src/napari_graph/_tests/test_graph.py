@@ -76,8 +76,11 @@ def test_directed_init_from_dataframe(n_prealloc_edges: int) -> None:
 
     graph.init_nodes_from_dataframe(nodes_df, ["y", "x"])
     graph.add_edges(edges)
-    
-    assert np.all(np.asarray(graph.source_edges(nodes_df.index)) == edges[:, np.newaxis, :])
+   
+    source_edges = np.asarray(graph.source_edges(nodes_df.index))  
+    target_edges = np.asarray(graph.target_edges(np.roll(nodes_df.index, -1)))
+    assert np.all(source_edges == edges[:, np.newaxis, :])
+    assert np.all(target_edges == edges[:, np.newaxis, :])
 
 
 def test_benchmark_construction_speed() -> None:
