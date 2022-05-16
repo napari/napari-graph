@@ -41,9 +41,7 @@ def test_undirected_init_from_dataframe(n_prealloc_edges: int) -> None:
     graph.init_nodes_from_dataframe(nodes_df, ["y", "x"])
     graph.add_edges(edges)
 
-    for node_idx in nodes_df.index:
-        node_edges = graph.edges(node_idx)
-
+    for node_idx, node_edges in zip(nodes_df.index, graph.edges(nodes_df.index)):
         # checking if two edges per node and connecting only two nodes
         assert node_edges.shape == (2, 2)
 

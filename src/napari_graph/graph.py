@@ -1,5 +1,6 @@
 
 from typing import Dict, List, Tuple, Union, Callable
+from numpy.typing import ArrayLike
 
 import numpy as np
 import pandas as pd
@@ -158,46 +159,33 @@ def _add_directed_edges(
 ################################
 
 @njit
-def _iterate_undirected_edges(edge_ptr_idx: int, edges_buffer: np.ndarray) -> typed.List:
+def _iterate_undirected_edges(edge_ptr_indices: np.ndarray, edges_buffer: np.ndarray) -> typed.List:
     """TODO: doc"""
-    edges = typed.List.empty_list(types.int64)
+    edges_list = typed.List()
 
-    while edge_ptr_idx != _EDGE_EMPTY_PTR:
-        buffer_idx = edge_ptr_idx * _UN_EDGE_SIZE
-        edges.append(edges_buffer[buffer_idx])      # src
-        edges.append(edges_buffer[buffer_idx + 1])  # tgt
-        edge_ptr_idx = edges_buffer[buffer_idx + _LL_UN_EDGE_POS]
+    for idx in edge_ptr_indices:
+        edges = typed.List.empty_list(types.int64)
+        edges_list.append(edges)
+
+        while idx != _EDGE_EMPTY_PTR:
+            buffer_idx = idx * _UN_EDGE_SIZE
+            edges.append(edges_buffer[buffer_idx])      # src
+            edges.append(edges_buffer[buffer_idx + 1])  # tgt
+            idx = edges_buffer[buffer_idx + _LL_UN_EDGE_POS]
     
-    return edges
+    return edges_list
 
 
 @njit
 def _iterate_directed_source_edges(edge_ptr_idx: int, edges_buffer: np.ndarray) -> typed.List:
     """TODO: doc"""
-    edges = typed.List.empty_list(types.int64)
-
-    while edge_ptr_idx != _EDGE_EMPTY_PTR:
-        buffer_idx = edge_ptr_idx * _DI_EDGE_SIZE
-        edges.append(edges_buffer[buffer_idx])      # src
-        edges.append(edges_buffer[buffer_idx + 1])  # tgt
-        edge_ptr_idx = edges_buffer[buffer_idx + _LL_DI_EDGE_POS]
-    
-    return edges
+    pass
 
 
 @njit
 def _iterate_directed_target_edges(edge_ptr_idx: int, edges_buffer: np.ndarray) -> typed.List:
     """TODO: doc"""
-    edges = typed.List.empty_list(types.int64)
-
-    while edge_ptr_idx != _EDGE_EMPTY_PTR:
-        buffer_idx = edge_ptr_idx * _DI_EDGE_SIZE
-        edges.append(edges_buffer[buffer_idx])      # src
-        edges.append(edges_buffer[buffer_idx + 1])  # tgt
-        edge_ptr_idx = edges_buffer[buffer_idx + _LL_DI_EDGE_POS + 1]
-    
-    return edges
-
+    pass
 
 
 ##############################
@@ -222,7 +210,7 @@ def _vmap_world2buffer(world2buffer: typed.Dict, world_idx: np.ndarray) -> typed
     """
     Maps world indices to buffer indices.
     """
-    buffer_idx = np.empty(world_idx.shape[0], dtype=int)
+    buffer_idx = np.empty(world_idx.shape[0], dtype=types.int64)
     for i in range(world_idx.shape[0]):
         buffer_idx[i] = world2buffer[world_idx[i]]
     return buffer_idx
@@ -363,13 +351,37 @@ class BaseGraph:
         buffer_idx = _vmap_world2buffer(self._world2buffer, world_idx.reshape(-1))
         return buffer_idx.reshape(shape)
 
-    def edges(self, node_idx: int) -> List[int]:
+    def edges(self, node_indices: np.ndarray) -> List[int]:
         """
         FIXME:
             - Should we keep this method on the base class?
               For directed graph we would have to map this to source or target edges
         """
         raise NotImplementedError
+
+    def _iterate_edges(
+        self,
+        node_indices: ArrayLike,
+        node2edges: np.ndarray,
+        iterate_edges_func: Callable[[np.ndarray, np.ndarray], List[np.ndarray]],
+    ) -> List[np.ndarray]:
+        """
+        TODO:
+            - doc
+            - implement numba version that iterates multiple nodes' edges in a single call.
+        """
+        node_indices = np.atleast_1d(node_indices)
+        if node_indices.ndim > 1:
+            raise ValueError
+
+        flat_edges = iterate_edges_func(
+            node2edges[self._map_world2buffer(node_indices)],
+            self._edges_buffer,
+        )
+        return [
+            self._buffer2world[e].reshape(-1, 2)
+            for e in flat_edges
+        ]
 
 
 class UndirectedGraph(BaseGraph):
@@ -387,19 +399,13 @@ class UndirectedGraph(BaseGraph):
             self._n_edges,
             self._node2edges,
         )
-        
-    def edges(self, node_idx: int) -> List[int]:
-        """
-        TODO:
-            - doc
-            - implement numba version that iterates multiple nodes' edges in a single call.
-        """
-        flat_edges = _iterate_undirected_edges(
-            self._node2edges[self._world2buffer[node_idx]],
-            self._edges_buffer,
+
+    def edges(self, node_indices: ArrayLike) -> List[np.ndarray]:
+        return self._iterate_edges(
+            node_indices,
+            node2edges=self._node2edges,
+            iterate_edges_func=_iterate_undirected_edges,
         )
-        flat_edges = self._buffer2world[flat_edges]
-        return np.asarray(flat_edges.reshape(-1, 2))
 
 
 class DirectedGraph(BaseGraph):
@@ -417,24 +423,17 @@ class DirectedGraph(BaseGraph):
             self._n_edges,
             self._node2edges,
         )
-        
-    def source_edges(self, node_idx: int) -> List[int]:
-       return self._iterate_edges(node_idx, _iterate_directed_source_edges)
-    
-    def target_edges(self, node_idx: int) -> List[int]:
-        return self._iterate_edges(node_idx, _iterate_directed_target_edges)
-    
-    def _iterate_edges(self, node_idx: int, iterate_func: Callable) -> List[int]:
-        """
-        TODO:
-            - doc
-            - implement numba version that iterates multiple nodes' edges in a single call.
-        """
-        raise RuntimeError  # FIXME: node2edges should change between source / target iterator
-        flat_edges = iterate_func(
-            self._node2edges[self._world2buffer[node_idx]],
-            self._edges_buffer,
-        )
-        flat_edges = self._buffer2world[flat_edges]
-        return np.asarray(flat_edges.reshape(-1, 2))
  
+    def source_edges(self, node_indices: ArrayLike) -> List[np.ndarray]:
+        return self._iterate_edges(
+            node_indices,
+            node2edges=self._node2src_edges,
+            iterate_edges_func=_iterate_directed_source_edges,
+        )
+
+    def target_edges(self, node_indices: ArrayLike) -> List[np.ndarray]:
+        return self._iterate_edges(
+            node_indices,
+            node2edges=self._node2tgt_edges,
+            iterate_edges_func=_iterate_directed_target_edges,
+        )
