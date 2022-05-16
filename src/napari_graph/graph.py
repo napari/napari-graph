@@ -1,5 +1,5 @@
 
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Tuple, Union, Callable
 
 import numpy as np
 import pandas as pd
@@ -7,45 +7,103 @@ import pandas as pd
 from numba import njit, typed
 from numba.core import types
 
-# Numba constants have to be outside classes
+# Numba constants have to be outside classes :(
 
-_EDGE_SIZE = 3
-_LL_EDGE_POS = _EDGE_SIZE - 1
+# undirected edge constants
+_UN_EDGE_SIZE = 3
+_LL_UN_EDGE_POS = 2
+
+# directed edge constants
+_DI_EDGE_SIZE = _UN_EDGE_SIZE + 1
+_LL_DI_EDGE_POS = 2
+
+# generic constants
 _EDGE_EMPTY_PTR = -1
 _EDGE_BUFFER_FULL = -2
+_EDGE_INVALID_INDEX = -3
 
+
+################################
+##  edge insertion functions  ##
+################################
 
 @njit
-def _add_edge(buffer: np.ndarray, node2edge: np.ndarray, free_idx: int, src: int, dst: int) -> int:
+def _add_undirected_edge(buffer: np.ndarray, node2edge: np.ndarray, free_idx: int, src: int, tgt: int) -> int:
     """
     TODO: doc
 
     NOTE:
       - edges are added at the beginning of the linked list so we don't have to track its
-        tail and the operation can be done in O(1). This might decrease cash coherence because
+        tail and the operation can be done in O(1). This might decrease cash hits because
         they're sorted in memory in the opposite direction we're iterating
     """
 
     if free_idx == _EDGE_EMPTY_PTR:
-        return _EDGE_BUFFER_FULL  # buffer is full
+        return _EDGE_BUFFER_FULL
+
     elif free_idx < 0:
-        return -3  # invalid index
+        return _EDGE_INVALID_INDEX
     
     next_edge = node2edge[src]
     node2edge[src] = free_idx
 
-    buffer_index = free_idx * _EDGE_SIZE
-    next_empty = buffer[buffer_index + _LL_EDGE_POS]
+    buffer_index = free_idx * _UN_EDGE_SIZE
+    next_empty = buffer[buffer_index + _LL_UN_EDGE_POS]
 
     buffer[buffer_index] = src
-    buffer[buffer_index + 1] = dst
-    buffer[buffer_index + _LL_EDGE_POS] = next_edge
+    buffer[buffer_index + 1] = tgt
+    buffer[buffer_index + _LL_UN_EDGE_POS] = next_edge
 
     return next_empty
 
 
 @njit
-def _add_undirected_edges(buffer: np.ndarray, edges: np.ndarray, empty_idx: int, n_edges: int, node2edge: np.ndarray) -> Tuple[int, int]:
+def _add_directed_edge(
+    buffer: np.ndarray,
+    node2src_edge: np.ndarray,
+    node2tgt_edge: np.ndarray,
+    free_idx: int,
+    src: int,
+    tgt: int,
+) -> int:
+    """
+    TODO: doc
+
+    NOTE:
+      - see _add_undirected_edge note about cache misses.
+    """
+
+    if free_idx == _EDGE_EMPTY_PTR:
+        return _EDGE_BUFFER_FULL
+
+    elif free_idx < 0:
+        return _EDGE_INVALID_INDEX
+    
+    next_src_edge = node2src_edge[src]
+    next_tgt_edge = node2tgt_edge[tgt]
+    node2src_edge[src] = free_idx
+    node2tgt_edge[tgt] = free_idx
+
+    buffer_index = free_idx * _DI_EDGE_SIZE
+    next_empty = buffer[buffer_index + _LL_DI_EDGE_POS]
+
+    buffer[buffer_index] = src
+    buffer[buffer_index + 1] = tgt
+    buffer[buffer_index + _LL_UN_EDGE_POS] = next_src_edge
+    buffer[buffer_index + _LL_DI_EDGE_POS + 1] = next_tgt_edge
+
+    return next_empty
+
+
+@njit
+def _add_undirected_edges(
+    buffer: np.ndarray,
+    edges: np.ndarray,
+    empty_idx: int,
+    n_edges: int,
+    node2edge: np.ndarray
+) -> Tuple[int, int]:
+
     # TODO: doc
     """
     Returns next empty index, -1 if full, -2 if there was some error
@@ -56,20 +114,27 @@ def _add_undirected_edges(buffer: np.ndarray, edges: np.ndarray, empty_idx: int,
         # adding (u, v)
         if empty_idx == _EDGE_BUFFER_FULL:
             return _EDGE_BUFFER_FULL, n_edges
-        empty_idx = _add_edge(buffer, node2edge, empty_idx, edges[i, 0], edges[i, 1])
+        empty_idx = _add_undirected_edge(buffer, node2edge, empty_idx, edges[i, 0], edges[i, 1])
         n_edges += 1
 
         # adding (v, u)
         if empty_idx == _EDGE_BUFFER_FULL:
             return _EDGE_BUFFER_FULL, n_edges
-        empty_idx = _add_edge(buffer, node2edge, empty_idx, edges[i, 1], edges[i, 0])
+        empty_idx = _add_undirected_edge(buffer, node2edge, empty_idx, edges[i, 1], edges[i, 0])
         n_edges += 1
 
     return empty_idx, n_edges
 
 
 @njit
-def _add_directed_edges(buffer: np.ndarray, edges: np.ndarray, empty_idx: int, n_edges: int, node2edge: np.ndarray) -> Tuple[int, int]:
+def _add_directed_edges(
+    buffer: np.ndarray,
+    edges: np.ndarray,
+    empty_idx: int,
+    n_edges: int,
+    node2src_edge: np.ndarray,
+    node2tgt_edge: np.ndarray,
+) -> Tuple[int, int]:
     # TODO: doc
     """
     Returns next empty index, -1 if full, -2 if there was some error
@@ -79,25 +144,65 @@ def _add_directed_edges(buffer: np.ndarray, edges: np.ndarray, empty_idx: int, n
 
         if empty_idx == _EDGE_BUFFER_FULL:
             return _EDGE_BUFFER_FULL, n_edges
-        empty_idx = _add_edge(buffer, node2edge, empty_idx, edges[i, 0], edges[i, 1])
+
+        empty_idx = _add_directed_edge(
+            buffer, node2src_edge, node2tgt_edge, empty_idx, edges[i, 0], edges[i, 1]
+        )
         n_edges += 1
 
     return empty_idx, n_edges
 
 
+################################
+##  edge iteration functions  ##
+################################
+
 @njit
-def _iterate_edges(edge_ptr_idx: int, edges_buffer: np.ndarray) -> typed.List:
+def _iterate_undirected_edges(edge_ptr_idx: int, edges_buffer: np.ndarray) -> typed.List:
     """TODO: doc"""
     edges = typed.List.empty_list(types.int64)
 
     while edge_ptr_idx != _EDGE_EMPTY_PTR:
-        buffer_idx = edge_ptr_idx * _EDGE_SIZE
+        buffer_idx = edge_ptr_idx * _UN_EDGE_SIZE
         edges.append(edges_buffer[buffer_idx])      # src
-        edges.append(edges_buffer[buffer_idx + 1])  # dst
-        edge_ptr_idx = edges_buffer[buffer_idx + _LL_EDGE_POS]
+        edges.append(edges_buffer[buffer_idx + 1])  # tgt
+        edge_ptr_idx = edges_buffer[buffer_idx + _LL_UN_EDGE_POS]
     
     return edges
 
+
+@njit
+def _iterate_directed_source_edges(edge_ptr_idx: int, edges_buffer: np.ndarray) -> typed.List:
+    """TODO: doc"""
+    edges = typed.List.empty_list(types.int64)
+
+    while edge_ptr_idx != _EDGE_EMPTY_PTR:
+        buffer_idx = edge_ptr_idx * _DI_EDGE_SIZE
+        edges.append(edges_buffer[buffer_idx])      # src
+        edges.append(edges_buffer[buffer_idx + 1])  # tgt
+        edge_ptr_idx = edges_buffer[buffer_idx + _LL_DI_EDGE_POS]
+    
+    return edges
+
+
+@njit
+def _iterate_directed_target_edges(edge_ptr_idx: int, edges_buffer: np.ndarray) -> typed.List:
+    """TODO: doc"""
+    edges = typed.List.empty_list(types.int64)
+
+    while edge_ptr_idx != _EDGE_EMPTY_PTR:
+        buffer_idx = edge_ptr_idx * _DI_EDGE_SIZE
+        edges.append(edges_buffer[buffer_idx])      # src
+        edges.append(edges_buffer[buffer_idx + 1])  # tgt
+        edge_ptr_idx = edges_buffer[buffer_idx + _LL_DI_EDGE_POS + 1]
+    
+    return edges
+
+
+
+##############################
+##  edge mapping functions  ##
+##############################
 
 @njit
 def _create_world2buffer_map(world_idx: np.ndarray) -> typed.Dict:
@@ -125,8 +230,13 @@ def _vmap_world2buffer(world2buffer: typed.Dict, world_idx: np.ndarray) -> typed
 
 class BaseGraph:
     # TODO: doc
-    _EDGE_DUPLICATION = 1
+
     _NODE_EMPTY_PTR = -1
+
+    # abstract constants
+    _EDGE_DUPLICATION: int = ...
+    _EDGE_SIZE: int = ...
+    _LL_EDGE_POS: int = ...
 
     def __init__(self, n_nodes: int, ndim: int, n_edges: int):
         self._active = np.ones(n_nodes, dtype=bool)
@@ -138,8 +248,8 @@ class BaseGraph:
         self._empty_edge_idx = 0 if n_edges > 0 else _EDGE_EMPTY_PTR
         self._n_edges = 0
 
-        self._edges_buffer = np.full(n_edges * self._EDGE_DUPLICATION * _EDGE_SIZE, fill_value=-1, dtype=int)
-        self._edges_buffer[_LL_EDGE_POS : -_EDGE_SIZE :_EDGE_SIZE] = np.arange(1, self._EDGE_DUPLICATION * n_edges)
+        self._edges_buffer = np.full(n_edges * self._EDGE_DUPLICATION * self._EDGE_SIZE, fill_value=-1, dtype=int)
+        self._edges_buffer[self._LL_EDGE_POS : -self._EDGE_SIZE :self._EDGE_SIZE] = np.arange(1, self._EDGE_DUPLICATION * n_edges)
 
         self._world2buffer = typed.Dict.empty(types.int64, types.int64)
         self._buffer2world = np.full(n_nodes, fill_value=self._NODE_EMPTY_PTR, dtype=int)
@@ -193,23 +303,23 @@ class BaseGraph:
             raise ValueError("Tried to realloc to current buffer size.")
 
         old_buffer_size = len(self._edges_buffer)
-        buffer_size = n_edges * _EDGE_SIZE
+        buffer_size = n_edges * self._EDGE_SIZE
 
         new_edges_buffer = np.full(buffer_size, fill_value=-1, dtype=int)
         new_edges_buffer[:len(self._edges_buffer)] = self._edges_buffer  # filling previous buffer data
         self._edges_buffer = new_edges_buffer
 
         # fills empty edges ptr
-        self._edges_buffer[old_buffer_size + _LL_EDGE_POS : -_EDGE_SIZE : _EDGE_SIZE] =\
+        self._edges_buffer[old_buffer_size + self._LL_EDGE_POS : -self._EDGE_SIZE :self._EDGE_SIZE] =\
              np.arange(old_n_allocated + 1, n_edges) 
 
         # appends existing empty edges linked list to the end of the new list
-        self._edges_buffer[_LL_EDGE_POS - _EDGE_SIZE] = self._empty_edge_idx
+        self._edges_buffer[self._LL_EDGE_POS - self._EDGE_SIZE] = self._empty_edge_idx
         self._empty_edge_idx = old_n_allocated
 
     @property
     def n_allocated_edges(self) -> int:
-        return len(self._edges_buffer) // (self._EDGE_DUPLICATION * _EDGE_SIZE)
+        return len(self._edges_buffer) // (self._EDGE_DUPLICATION * self._EDGE_SIZE)
 
     @property
     def n_empty_edges(self) -> int:
@@ -255,22 +365,19 @@ class BaseGraph:
 
     def edges(self, node_idx: int) -> List[int]:
         """
-        TODO:
-            - doc
-            - implement numba version that iterates multiple nodes' edges in a single call.
+        FIXME:
+            - Should we keep this method on the base class?
+              For directed graph we would have to map this to source or target edges
         """
-        flat_edges = _iterate_edges(
-            self._node2edges[self._world2buffer[node_idx]],
-            self._edges_buffer,
-        )
-        flat_edges = self._buffer2world[flat_edges]
-        return np.asarray(flat_edges.reshape(-1, 2))
+        raise NotImplementedError
 
 
 class UndirectedGraph(BaseGraph):
     # TODO: doc
 
     _EDGE_DUPLICATION = 2
+    _EDGE_SIZE = _UN_EDGE_SIZE
+    _LL_EDGE_POS = _LL_UN_EDGE_POS
 
     def _add_edges(self, edges: np.ndarray) -> None:
         self._empty_edge_idx, self._n_edges = _add_undirected_edges(
@@ -281,9 +388,26 @@ class UndirectedGraph(BaseGraph):
             self._node2edges,
         )
         
+    def edges(self, node_idx: int) -> List[int]:
+        """
+        TODO:
+            - doc
+            - implement numba version that iterates multiple nodes' edges in a single call.
+        """
+        flat_edges = _iterate_undirected_edges(
+            self._node2edges[self._world2buffer[node_idx]],
+            self._edges_buffer,
+        )
+        flat_edges = self._buffer2world[flat_edges]
+        return np.asarray(flat_edges.reshape(-1, 2))
+
 
 class DirectedGraph(BaseGraph):
     # TODO: doc
+
+    _EDGE_DUPLICATION = 1
+    _EDGE_SIZE = _DI_EDGE_SIZE
+    _LL_EDGE_POS = _LL_DI_EDGE_POS
 
     def _add_edges(self, edges: np.ndarray) -> None:
         self._empty_edge_idx, self._n_edges = _add_directed_edges(
@@ -293,3 +417,24 @@ class DirectedGraph(BaseGraph):
             self._n_edges,
             self._node2edges,
         )
+        
+    def source_edges(self, node_idx: int) -> List[int]:
+       return self._iterate_edges(node_idx, _iterate_directed_source_edges)
+    
+    def target_edges(self, node_idx: int) -> List[int]:
+        return self._iterate_edges(node_idx, _iterate_directed_target_edges)
+    
+    def _iterate_edges(self, node_idx: int, iterate_func: Callable) -> List[int]:
+        """
+        TODO:
+            - doc
+            - implement numba version that iterates multiple nodes' edges in a single call.
+        """
+        raise RuntimeError  # FIXME: node2edges should change between source / target iterator
+        flat_edges = iterate_func(
+            self._node2edges[self._world2buffer[node_idx]],
+            self._edges_buffer,
+        )
+        flat_edges = self._buffer2world[flat_edges]
+        return np.asarray(flat_edges.reshape(-1, 2))
+ 
