@@ -1,5 +1,5 @@
 
-from typing import Dict, List, Tuple, Callable
+from typing import Dict, List, Tuple, Callable, Optional
 from numpy.typing import ArrayLike
 
 import numpy as np
@@ -116,12 +116,12 @@ def _add_undirected_edges(
         if empty_idx == _EDGE_BUFFER_FULL:
             return _EDGE_BUFFER_FULL, n_edges
         empty_idx = _add_undirected_edge(buffer, node2edge, empty_idx, edges[i, 0], edges[i, 1])
-        n_edges += 1
 
         # adding (v, u)
         if empty_idx == _EDGE_BUFFER_FULL:
             return _EDGE_BUFFER_FULL, n_edges
         empty_idx = _add_undirected_edge(buffer, node2edge, empty_idx, edges[i, 1], edges[i, 0])
+
         n_edges += 1
 
     return empty_idx, n_edges
@@ -174,18 +174,22 @@ def _remove_edge(
 
     while idx != _EDGE_EMPTY_PTR:
         buffer_idx = idx * edge_size
-        next_edge_buffer_idx = edges_buffer[buffer_idx + ll_edge_pos]
+        next_edge_idx = edges_buffer[buffer_idx + ll_edge_pos] 
+
         # edge found
-        if edges_buffer[buffer_idx] == tgt_node:
+        if edges_buffer[buffer_idx + 1] == tgt_node:
+            # skipping found edge from linked list
             if prev_buffer_idx == _EDGE_EMPTY_PTR:
-                node2edges[src_node] = idx
+                node2edges[src_node] = next_edge_idx
             else:
-                edges_buffer[prev_buffer_idx + ll_edge_pos] = next_edge_buffer_idx
+                edges_buffer[prev_buffer_idx + ll_edge_pos] = next_edge_idx
             edges_buffer[buffer_idx + ll_edge_pos] = empty_idx
             return idx
+        # moving to next edge
+        idx = next_edge_idx
         prev_buffer_idx = buffer_idx
     
-    return _EDGE_INVALID_INDEX
+    raise ValueError("Found an invalid edge at edge removal")
 
 
 @njit
@@ -201,17 +205,62 @@ def _remove_undirected_edge(
     empty_idx = _remove_edge(
         tgt_node, src_node, empty_idx, edges_buffer, node2edges, _UN_EDGE_SIZE, _LL_UN_EDGE_POS,
     )
-    if empty_idx == _EDGE_INVALID_INDEX:
-        return _EDGE_INVALID_INDEX
 
     empty_idx = _remove_edge(
         src_node, tgt_node, empty_idx, edges_buffer, node2edges, _UN_EDGE_SIZE, _LL_UN_EDGE_POS,
     )
 
-    if empty_idx == _EDGE_INVALID_INDEX:
-        return _EDGE_INVALID_INDEX
-
     return empty_idx
+
+
+@njit
+def _remove_undirected_edges(
+    edges: np.ndarray,
+    empty_idx: int,
+    edges_buffer: np.ndarray,
+    node2edges: np.ndarray,
+) -> int:
+
+    for i in range(edges.shape[0]):
+        empty_idx = _remove_undirected_edge(
+            edges[i, 0], edges[i, 1], empty_idx, edges_buffer, node2edges
+        )
+    return empty_idx
+
+
+@njit(inline='always')
+def _remove_target_edge(
+    src_node: int,
+    tgt_node: int,
+    empty_idx: int,
+    edges_buffer: np.ndarray,
+    node2edges: np.ndarray,
+    edge_size: int,
+    ll_edge_pos: int,
+) -> int:
+
+    idx = node2edges[tgt_node]  # different indexing from normal edge
+    prev_buffer_idx = _EDGE_EMPTY_PTR
+
+    while idx != _EDGE_EMPTY_PTR:
+        buffer_idx = idx * edge_size
+        next_edge_idx = edges_buffer[buffer_idx + ll_edge_pos] 
+
+        # edge found
+        if edges_buffer[buffer_idx] == src_node:   # different indexing from normal edge
+            # skipping found edge from linked list
+            if prev_buffer_idx == _EDGE_EMPTY_PTR:
+                node2edges[src_node] = next_edge_idx
+            else:
+                edges_buffer[prev_buffer_idx + ll_edge_pos] = next_edge_idx
+            edges_buffer[buffer_idx + ll_edge_pos] = empty_idx
+            return
+
+        # moving to next edge
+        idx = next_edge_idx
+        prev_buffer_idx = buffer_idx
+    
+    raise ValueError("Found an invalid edge at edge removal")
 
 
 @njit
@@ -219,63 +268,36 @@ def _remove_directed_edge(
     src_node: int,
     tgt_node: int,
     empty_idx: int,
+    edges_buffer: np.ndarray,
     node2src_edges: np.ndarray,
     node2tgt_edges: np.ndarray,
 ) -> int:
 
-    info = _remove_edge(
-        tgt_node, src_node, empty_idx, node2tgt_edges, _DI_EDGE_SIZE, _LL_DI_EDGE_POS + 1,
+    _remove_target_edge(
+        src_node, tgt_node, empty_idx, edges_buffer, node2tgt_edges, _DI_EDGE_SIZE, _LL_DI_EDGE_POS + 1,
     )
-    # empty index is not updated, just updating target linked list and buffer
-    if info == _EDGE_INVALID_INDEX:
-        return _EDGE_INVALID_INDEX
 
     empty_idx = _remove_edge(
-        src_node, tgt_node, empty_idx, node2src_edges, _DI_EDGE_SIZE, _LL_DI_EDGE_POS,
+        src_node, tgt_node, empty_idx, edges_buffer, node2src_edges, _DI_EDGE_SIZE, _LL_DI_EDGE_POS,
     )
-    if empty_idx == _EDGE_INVALID_INDEX:
-        return _EDGE_INVALID_INDEX
-    
+
     return empty_idx
 
-    
-#    # removing from target linked list first
-#    idx = node2tgt_edges[tgt_node]
-#    prev_buffer_idx = _EDGE_EMPTY_PTR
-#
-#    while idx != _EDGE_EMPTY_PTR:
-#        buffer_idx = idx * _DI_EDGE_SIZE
-#        # edge found
-#        if edges_buffer[buffer_idx] == src_node:
-#            # removing from linked list
-#            next_edge_buffer_idx = edges_buffer[buffer_idx + _LL_DI_EDGE_POS + 1]
-#            if prev_buffer_idx == _EDGE_EMPTY_PTR:
-#                node2tgt_edges[tgt_node] = next_edge_buffer_idx
-#            else:
-#                edges_buffer[prev_buffer_idx + _LL_DI_EDGE_POS + 1] = next_edge_buffer_idx
-#            break
-#        prev_buffer_idx = buffer_idx
-#
-#    # removing from source linked list and updating empty
-#    idx = node2src_edges[src_node]
-#    prev_buffer_idx = _EDGE_EMPTY_PTR
-#
-#    while idx != _EDGE_EMPTY_PTR:
-#        buffer_idx = idx * _DI_EDGE_SIZE
-#        # edge found
-#        if edges_buffer[buffer_idx + 1] == tgt_node:
-#            # removing from linked list
-#            next_edge_buffer_idx = edges_buffer[buffer_idx + _LL_DI_EDGE_POS]
-#            if prev_buffer_idx == _EDGE_EMPTY_PTR:
-#                node2src_edges[src_node] = next_edge_buffer_idx
-#            else:
-#                edges_buffer[prev_buffer_idx + _LL_DI_EDGE_POS] = next_edge_buffer_idx
-#            # adding this node to start of the linked list and returning it
-#            edges_buffer[buffer_idx + _LL_DI_EDGE_POS] = empty_idx
-#            return idx
-#        prev_buffer_idx = buffer_idx
-#
-#    return _EDGE_INVALID_INDEX
+
+@njit
+def _remove_directed_edges(
+    edges: np.ndarray,
+    empty_idx: int,
+    edges_buffer: np.ndarray,
+    node2src_edges: np.ndarray,
+    node2tgt_edges: np.ndarray,
+) -> int:
+
+    for i in range(edges.shape[0]):
+        empty_idx = _remove_directed_edge(
+            edges[i, 0], edges[i, 1], empty_idx, edges_buffer, node2src_edges, node2tgt_edges,
+        )
+    return empty_idx
 
 
 ################################
@@ -411,6 +433,10 @@ class BaseGraph:
         # TODO
         raise NotImplementedError
     
+    def remove_node(self, index: int) -> None:
+        # TODO
+        raise NotImplementedError
+    
     def _realloc_edges_buffer(self, n_edges: int) -> None:
         # TODO: doc
         # augmenting size to match dummy edges
@@ -450,8 +476,26 @@ class BaseGraph:
     def n_edges(self) -> int:
         return self._n_edges
 
+    def _validate_nodes(self, node_indices: Optional[ArrayLike] = None) -> np.ndarray:
+        # NOTE: maybe the nodes could be mappend inside this function
+        if node_indices is None:
+            return self._buffer2world[self._buffer2world != self._NODE_EMPTY_PTR]
+        
+        node_indices = np.atleast_1d(node_indices)
+
+        if not np.issubdtype(node_indices.dtype, np.integer):
+            return ValueError(f"Node indices must be integer. Found {node_indices.dtype}.")
+ 
+        if node_indices.ndim != 1:
+            return ValueError(f"Node indices must be 1-dimensional. Found {node_indices.ndim}-dimensional.")
+        
+        return node_indices
+
     def _validate_edges(self, edges: ArrayLike) -> np.ndarray:
         edges = np.atleast_2d(edges)
+
+        if not np.issubdtype(edges.dtype, np.integer):
+            return ValueError(f"Edges must be integer. Found {edges.dtype}.")
 
         if edges.ndim != 2:
             raise ValueError(f"Edges must be 1- or 2-dimensional. Found {edges.ndim}-dimensional.")
@@ -482,7 +526,10 @@ class BaseGraph:
     def remove_edges(self, edges: ArrayLike) -> None:
         # TODO: docs
         edges = self._validate_edges(edges)
+        edges = self._map_world2buffer(edges)
         self._remove_edges(edges)
+        # FIXME: this can lead to inconsistency in the count if removing edges raises an error
+        self._n_edges -= len(edges)
  
     def _map_world2buffer(self, world_idx: np.ndarray) -> np.ndarray:
         """Flattens the world indices buffer maps it to buffer coordinates and reshape back to original space."""
@@ -499,9 +546,7 @@ class BaseGraph:
         """
         TODO: doc
         """
-        node_indices = np.atleast_1d(node_indices)
-        if node_indices.ndim > 1:
-            raise ValueError
+        node_indices = self._validate_nodes(node_indices)
 
         flat_edges = iterate_edges_func(
             node2edges[self._map_world2buffer(node_indices)],
@@ -529,7 +574,7 @@ class UndirectedGraph(BaseGraph):
             self._node2edges,
         )
 
-    def edges(self, node_indices: ArrayLike) -> List[np.ndarray]:
+    def edges(self, node_indices: Optional[ArrayLike] = None) -> List[np.ndarray]:
         return self._iterate_edges(
             node_indices,
             node2edges=self._node2edges,
@@ -537,7 +582,9 @@ class UndirectedGraph(BaseGraph):
         )
     
     def _remove_edges(self, edges: np.ndarray) -> None:
-        return super()._remove_edges(edges)  # FIXME
+        self._empty_edge_idx = _remove_undirected_edges(
+            edges, self._empty_edge_idx, self._edges_buffer, self._node2edges
+        )
 
 
 class DirectedGraph(BaseGraph):
@@ -573,14 +620,14 @@ class DirectedGraph(BaseGraph):
             self._node2tgt_edges,
         )
  
-    def source_edges(self, node_indices: ArrayLike) -> List[np.ndarray]:
+    def source_edges(self, node_indices: Optional[ArrayLike] = None) -> List[np.ndarray]:
         return self._iterate_edges(
             node_indices,
             node2edges=self._node2edges,
             iterate_edges_func=_iterate_directed_source_edges,
         )
 
-    def target_edges(self, node_indices: ArrayLike) -> List[np.ndarray]:
+    def target_edges(self, node_indices: Optional[ArrayLike] = None) -> List[np.ndarray]:
         return self._iterate_edges(
             node_indices,
             node2edges=self._node2tgt_edges,
@@ -588,8 +635,6 @@ class DirectedGraph(BaseGraph):
         )
 
     def _remove_edges(self, edges: np.ndarray) -> None:
-        return super()._remove_edges(edges)  # FIXME
-
-
-# TODO:
-#  - write remove edges test and expand it to removal of multiple edges in a single call
+        self._empty_edge_idx = _remove_directed_edges(
+            edges, self._empty_edge_idx, self._edges_buffer, self._node2edges, self._node2tgt_edges,
+        )
