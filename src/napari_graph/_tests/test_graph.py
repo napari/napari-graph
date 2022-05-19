@@ -1,12 +1,15 @@
 import pytest
 import numpy as np
 import pandas as pd
-from typing import Tuple
 
-from napari_graph.graph import UndirectedGraph, DirectedGraph
+from numpy.typing import ArrayLike
+from typing import Tuple, Callable, List, Type
 
 
-def make_graph(size: int, sparsity: float) -> Tuple[pd.DataFrame, np.ndarray]:
+from napari_graph.graph import BaseGraph, UndirectedGraph, DirectedGraph
+
+
+def make_graph_dataframe(size: int, sparsity: float) -> Tuple[pd.DataFrame, np.ndarray]:
     # TODO:
     #  - move to pytest fixture
 
@@ -83,12 +86,88 @@ def test_directed_init_from_dataframe(n_prealloc_edges: int) -> None:
     assert np.all(target_edges == edges[:, np.newaxis, :])
 
 
+class TestGraph:
+    _GRAPH_CLASS: Type[BaseGraph] = ...
+
+    def setup_method(self, method: Callable) -> None:
+        self.nodes_df = pd.DataFrame(
+            [[0, 2.5],
+            [4, 2.5],
+            [1, 0,],
+            [2, 3.5],
+            [3, 0]],
+            columns=["y", "x"],
+        )
+
+        self.edges = np.asarray(
+            [[0, 1],
+            [1, 2],
+            [2, 3],
+            [3, 4],
+            [4, 0]]
+        )
+        
+        self.graph = self._GRAPH_CLASS(
+            n_nodes=self.nodes_df.shape[0], ndim=self.nodes_df.shape[1], n_edges=len(self.edges)
+        )
+        self.graph.init_nodes_from_dataframe(self.nodes_df, ["y", "x"])
+        self.graph.add_edges(self.edges)
+
+    @staticmethod
+    def contains(edge: ArrayLike, edges: List[ArrayLike]) -> bool:
+        return any(
+            np.allclose(e, edge) if len(e) > 0 else False
+            for e in edges
+        )
+
+    def teardown_method(self, method: Callable) -> None:
+        self.edges, self.nodes_df, self.graph = None, None, None
+
+
+class TestDirectedGraph(TestGraph):
+    _GRAPH_CLASS = DirectedGraph
+
+    def test_edge_removal(self) -> None:
+        self.graph.remove_edges([0, 1])
+        assert self.graph.n_edges == 4
+        assert self.graph.n_empty_edges == 1
+        assert not self.contains((0, 1), self.graph.source_edges())
+        assert not self.contains((1, 0), self.graph.target_edges())
+
+        self.graph.remove_edges([[1, 2], [2, 3]])
+        assert self.graph.n_edges == 2
+        assert self.graph.n_empty_edges == 3
+        assert not self.contains((1, 2), self.graph.source_edges())
+        assert not self.contains((2, 3), self.graph.source_edges())
+
+        assert self.graph.n_allocated_edges == 5
+
+
+class TestUndirectedGraph(TestGraph):
+    _GRAPH_CLASS = UndirectedGraph
+
+    def test_edge_removal(self) -> None:
+        self.graph.remove_edges([0, 1])
+        assert self.graph.n_edges == 4
+        assert self.graph.n_empty_edges == 1
+        assert not self.contains((0, 1), self.graph.edges())
+        assert not self.contains((1, 0), self.graph.edges())
+
+        self.graph.remove_edges([[1, 2], [2, 3]])
+        assert self.graph.n_edges == 2
+        assert self.graph.n_empty_edges == 3
+        assert not self.contains((1, 2), self.graph.edges())
+        assert not self.contains((2, 3), self.graph.edges())
+
+        assert self.graph.n_allocated_edges == 5
+
+
 def test_benchmark_construction_speed() -> None:
     # FIXME: remove this, maybe create an airspeed velocity CI
     from timeit import default_timer
     import networkx as nx
 
-    nodes_df, edges = make_graph(100000, 0.0005)
+    nodes_df, edges = make_graph_dataframe(10000, 0.001)
 
     print('# edges', len(edges))
 
