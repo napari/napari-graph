@@ -29,30 +29,35 @@ _EDGE_INVALID_INDEX = -3
 ################################
 
 @njit
-def _add_undirected_edge(buffer: np.ndarray, node2edge: np.ndarray, free_idx: int, src: int, tgt: int) -> int:
+def _add_undirected_edge(buffer: np.ndarray, node2edge: np.ndarray, empty_idx: int, src_node: int, tgt_node: int) -> int:
     """
-    TODO: doc
+    Adds a single edge (`src_idx`, `tgt_idx`) to `buffer`, updating the edge linked list (present in the buffer)
+    and the `node2edges` mapping (head of linked list).
 
-    NOTE:
-      - edges are added at the beginning of the linked list so we don't have to track its
-        tail and the operation can be done in O(1). This might decrease cash hits because
-        they're sorted in memory in the opposite direction we're iterating
+    NOTE: Edges are added at the beginning of the linked list so we don't have to track its
+          tail and the operation can be done in O(1). This might decrease cash hits because
+          they're sorted in memory in the opposite direction we iterate it.
+
+    Returns
+    -------
+    int
+        Next empty edge index position.
     """
 
-    if free_idx == _EDGE_EMPTY_PTR:
-        return _EDGE_BUFFER_FULL
+    if empty_idx == _EDGE_EMPTY_PTR:
+        raise ValueError("Edge buffer is full.")
 
-    elif free_idx < 0:
-        return _EDGE_INVALID_INDEX
+    elif empty_idx < 0:
+        raise ValueError("Invalid empty index.")
     
-    next_edge = node2edge[src]
-    node2edge[src] = free_idx
+    next_edge = node2edge[src_node]
+    node2edge[src_node] = empty_idx
 
-    buffer_index = free_idx * _UN_EDGE_SIZE
+    buffer_index = empty_idx * _UN_EDGE_SIZE
     next_empty = buffer[buffer_index + _LL_UN_EDGE_POS]
 
-    buffer[buffer_index] = src
-    buffer[buffer_index + 1] = tgt
+    buffer[buffer_index] = src_node
+    buffer[buffer_index + 1] = tgt_node
     buffer[buffer_index + _LL_UN_EDGE_POS] = next_edge
 
     return next_empty
@@ -63,33 +68,37 @@ def _add_directed_edge(
     buffer: np.ndarray,
     node2src_edge: np.ndarray,
     node2tgt_edge: np.ndarray,
-    free_idx: int,
-    src: int,
-    tgt: int,
+    empty_idx: int,
+    src_node: int,
+    tgt_node: int,
 ) -> int:
     """
-    TODO: doc
+    Adds a single directed edge to `buffer`, updating the `buffer`'s source and target linked list 
+    nd the nodes to edges mappings.
 
-    NOTE:
-      - see _add_undirected_edge note about cache misses.
+    NOTE: see `_add_undirected_edge` docs for comment about cache misses.
+
+     Returns
+    -------
+    int
+        Next empty edge index position.
     """
+    if empty_idx == _EDGE_EMPTY_PTR:
+        raise ValueError("Edge buffer is full.")
 
-    if free_idx == _EDGE_EMPTY_PTR:
-        return _EDGE_BUFFER_FULL
-
-    elif free_idx < 0:
-        return _EDGE_INVALID_INDEX
+    elif empty_idx < 0:
+        raise ValueError("Invalid empty index.")
     
-    next_src_edge = node2src_edge[src]
-    next_tgt_edge = node2tgt_edge[tgt]
-    node2src_edge[src] = free_idx
-    node2tgt_edge[tgt] = free_idx
+    next_src_edge = node2src_edge[src_node]
+    next_tgt_edge = node2tgt_edge[tgt_node]
+    node2src_edge[src_node] = empty_idx
+    node2tgt_edge[tgt_node] = empty_idx
 
-    buffer_index = free_idx * _DI_EDGE_SIZE
+    buffer_index = empty_idx * _DI_EDGE_SIZE
     next_empty = buffer[buffer_index + _LL_DI_EDGE_POS]
 
-    buffer[buffer_index] = src
-    buffer[buffer_index + 1] = tgt
+    buffer[buffer_index] = src_node
+    buffer[buffer_index + 1] = tgt_node
     buffer[buffer_index + _LL_UN_EDGE_POS] = next_src_edge
     buffer[buffer_index + _LL_DI_EDGE_POS + 1] = next_tgt_edge
 
@@ -104,22 +113,15 @@ def _add_undirected_edges(
     n_edges: int,
     node2edge: np.ndarray
 ) -> Tuple[int, int]:
-
-    # TODO: doc
-    """
-    Returns next empty index, -1 if full, -2 if there was some error
+    """Adds an array of edges into the `buffer`.
+       Edges are duplicated so both directions are available for fast graph transversal.
     """
     size = edges.shape[0]
     for i in range(size):
 
         # adding (u, v)
-        if empty_idx == _EDGE_BUFFER_FULL:
-            return _EDGE_BUFFER_FULL, n_edges
         empty_idx = _add_undirected_edge(buffer, node2edge, empty_idx, edges[i, 0], edges[i, 1])
-
         # adding (v, u)
-        if empty_idx == _EDGE_BUFFER_FULL:
-            return _EDGE_BUFFER_FULL, n_edges
         empty_idx = _add_undirected_edge(buffer, node2edge, empty_idx, edges[i, 1], edges[i, 0])
 
         n_edges += 1
@@ -136,9 +138,8 @@ def _add_directed_edges(
     node2src_edge: np.ndarray,
     node2tgt_edge: np.ndarray,
 ) -> Tuple[int, int]:
-    # TODO: doc
-    """
-    Returns next empty index, -1 if full, -2 if there was some error
+    """Adds an array of edges into the `buffer`.
+       Directed edges contains two linked lists, outgoing (source) and incoming (target) edges.
     """
     size = edges.shape[0]
     for i in range(size):
@@ -168,6 +169,31 @@ def _remove_edge(
     edge_size: int,
     ll_edge_pos: int,
 ) -> int:
+    """Generic function to remove directed or undirected nodes.
+       An additional removal of the target edges linked list is necessary for directed edges.
+
+    Parameters
+    ----------
+    src_node : int
+        Source node buffer index.
+    tgt_node : int
+        Target node buffer index.
+    empty_idx : int
+        First index of empty edges linked list.
+    edges_buffer : np.ndarray
+        Buffer of edges data.
+    node2edges : np.ndarray
+        Head of edges linked list, a mapping from node buffer indices to edge buffer indices.
+    edge_size : int
+        Size of the edges on the buffer. It should be inlined when compiled.
+    ll_edge_pos : int
+        Position (shift) of the edge linked list on the edge buffer. It should be inlined when compiled.
+
+    Returns
+    -------
+    int
+        New first index of empty edges linked list.
+    """
 
     idx = node2edges[src_node]
     prev_buffer_idx = _EDGE_EMPTY_PTR
@@ -204,8 +230,9 @@ def _remove_undirected_edge(
     edges_buffer: np.ndarray,
     node2edges: np.ndarray,
 ) -> int:
-    """TODO: doc"""
-
+    """Removes a single edge (and its duplicated sibling edge) from the buffer.
+       NOTE: Edges are removed such that empty pairs are consecutive in memory.
+    """
     empty_idx = _remove_edge(
         tgt_node, src_node, empty_idx, edges_buffer, node2edges, _UN_EDGE_SIZE, _LL_UN_EDGE_POS,
     )
@@ -224,6 +251,7 @@ def _remove_undirected_edges(
     edges_buffer: np.ndarray,
     node2edges: np.ndarray,
 ) -> int:
+    """Removes an array of edges (and their duplicated siblings edges) from the buffer."""
 
     for i in range(edges.shape[0]):
         empty_idx = _remove_undirected_edge(
@@ -240,6 +268,10 @@ def _remove_incident_undirected_edges(
     edges_buffer: np.ndarray,
     node2edges: np.ndarray,
 ) -> Tuple[int, int]:
+    """Removes every edges that contains `node_idx`.
+       NOTE: Edges are removed such that empty pairs are consecutive in memory.
+    """
+
     # the edges are removed such that the empty edges linked list contains
     # two positions adjacent in memory so we can serialize the edges using numpy vectorization
     idx = node2edges[node]
@@ -277,10 +309,11 @@ def _remove_target_edge(
     src_node: int,
     tgt_node: int,
     edges_buffer: np.ndarray,
-    node2edges: np.ndarray,
+    node2tgt_edges: np.ndarray,
 ) -> None:
+    """Removes edge from target edges linked list. It doesn't clean the buffer, because it'll be used later."""
 
-    idx = node2edges[tgt_node]  # different indexing from normal edge
+    idx = node2tgt_edges[tgt_node]  # different indexing from normal edge
     prev_buffer_idx = _EDGE_EMPTY_PTR
 
     while idx != _EDGE_EMPTY_PTR:
@@ -291,7 +324,7 @@ def _remove_target_edge(
         if edges_buffer[buffer_idx] == src_node:   # different indexing from normal edge
             # skipping found edge from linked list
             if prev_buffer_idx == _EDGE_EMPTY_PTR:
-                node2edges[src_node] = next_edge_idx
+                node2tgt_edges[src_node] = next_edge_idx
             else:
                 edges_buffer[prev_buffer_idx + _LL_DI_EDGE_POS + 1] = next_edge_idx
             edges_buffer[buffer_idx + _LL_DI_EDGE_POS + 1] = _EDGE_EMPTY_PTR
@@ -313,6 +346,7 @@ def _remove_directed_edge(
     node2src_edges: np.ndarray,
     node2tgt_edges: np.ndarray,
 ) -> int:
+    """Removes a single directed edge from the edges buffer."""
 
     # must be executed before default edge removal and cleanup
     _remove_target_edge(src_node, tgt_node, edges_buffer, node2tgt_edges)
@@ -332,6 +366,7 @@ def _remove_directed_edges(
     node2src_edges: np.ndarray,
     node2tgt_edges: np.ndarray,
 ) -> int:
+    """Removes an array of edges from the edges buffer."""
 
     for i in range(edges.shape[0]):
         empty_idx = _remove_directed_edge(
@@ -350,7 +385,9 @@ def _remove_unidirectional_incident_edges(
     node2tgt_edges: np.ndarray,
     is_target: int,
 ) -> Tuple[int, int]:
-
+    """Removes directed edge from the buffer that contains the given `node` in one of the selected directions.
+       The parameter `is_target` should be zero to remove collisions with source nodes and 1 for target nodes.
+    """
     if is_target:
         idx = node2tgt_edges[node]
     else:
@@ -383,6 +420,7 @@ def _remove_incident_directed_edges(
     node2src_edges: np.ndarray,
     node2tgt_edges: np.ndarray,
 ) -> Tuple[int, int]:
+    """Remove directed edges that contains `node` in either direction."""
     # does it need to be jitted? why not
 
     empty_idx, n_edges = _remove_unidirectional_incident_edges(
@@ -408,7 +446,25 @@ def _iterate_edges(
     edge_size: int,
     ll_edge_pos: int,
 ) -> typed.List:
-    """TODO: doc"""
+    """Iterate over the edges linked lists given their starting edges.
+       It returns list of multiplicity 2, where each pair is an edge.
+
+    Parameters
+    ----------
+    edge_ptr_indices : np.ndarray
+        Array of starting indices.
+    edges_buffer : np.ndarray
+        Edges buffer.
+    edge_size : int
+        Size of the edges on the buffer. It should be inlined when compiled.
+    ll_edge_pos : int
+        Position (shift) of the edge linked list on the edge buffer. It should be inlined when compiled.
+
+    Returns
+    -------
+    typed.List
+        List of lists edges, adjacent nodes are at indices (k, k+1) such that k is even.
+    """
     edges_list = typed.List()
 
     for idx in edge_ptr_indices:
@@ -426,16 +482,20 @@ def _iterate_edges(
 
 @njit
 def _iterate_undirected_edges(edge_ptr_indices: np.ndarray, edges_buffer: np.ndarray) -> typed.List:
+    """Helper function to inline the edges size and linked list position shift."""
     return _iterate_edges(edge_ptr_indices, edges_buffer, _UN_EDGE_SIZE, _LL_UN_EDGE_POS)
 
 
 @njit
 def _iterate_directed_source_edges(edge_ptr_indices: np.ndarray, edges_buffer: np.ndarray) -> typed.List:
+
+    """Helper function to inline the edges size and linked list position shift."""
     return _iterate_edges(edge_ptr_indices, edges_buffer, _DI_EDGE_SIZE, _LL_DI_EDGE_POS)
 
 
 @njit
 def _iterate_directed_target_edges(edge_ptr_indices: np.ndarray, edges_buffer: np.ndarray) -> typed.List:
+    """Helper function to inline the edges size and linked list position shift."""
     return _iterate_edges(edge_ptr_indices, edges_buffer, _DI_EDGE_SIZE, _LL_DI_EDGE_POS + 1)
 
 
@@ -445,9 +505,7 @@ def _iterate_directed_target_edges(edge_ptr_indices: np.ndarray, edges_buffer: n
 
 @njit
 def _create_world2buffer_map(world_idx: np.ndarray) -> typed.Dict:
-    """
-    Fills world indices to buffer indices mapping.
-    """
+    """Fills world indices to buffer indices mapping."""
     world2buffer = typed.Dict.empty(types.int64, types.int64)
 
     for i in range(world_idx.shape[0]):
@@ -458,9 +516,7 @@ def _create_world2buffer_map(world_idx: np.ndarray) -> typed.Dict:
 
 @njit(parallel=True)  # TODO: benchmark if parallel is worth it
 def _vmap_world2buffer(world2buffer: typed.Dict, world_idx: np.ndarray) -> typed.Dict:
-    """
-    Maps world indices to buffer indices.
-    """
+    """Maps world indices to buffer indices."""
     buffer_idx = np.empty(world_idx.shape[0], dtype=types.int64)
     for i in prange(world_idx.shape[0]):
         buffer_idx[i] = world2buffer[world_idx[i]]
@@ -468,8 +524,17 @@ def _vmap_world2buffer(world2buffer: typed.Dict, world_idx: np.ndarray) -> typed
 
 
 class BaseGraph:
-    # TODO: doc
+    """Abstract base graph class.
 
+    Parameters
+    ----------
+    n_nodes : int
+        Number of nodes to allocate to graph.
+    ndim : int
+        Number of spatial dimensions of graph.
+    n_edges : int
+        Number of edges of the graph.
+    """
     _NODE_EMPTY_PTR = -1
 
     # abstract constants
@@ -482,7 +547,6 @@ class BaseGraph:
     _ALLOC_MIN = 25
 
     def __init__(self, n_nodes: int, ndim: int, n_edges: int):
-
         # node-wise buffers
         self._coords = np.zeros((n_nodes, ndim), dtype=np.float32)
         self._feats = pd.DataFrame()
@@ -502,8 +566,15 @@ class BaseGraph:
         nodes_df: pd.DataFrame,
         coordinates_columns: List[str],
     ) -> None:
-        # TODO: doc
+        """Initializes graph nodes from data frame data. Graph nodes will be indexed by data frame indices.
 
+        Parameters
+        ----------
+        nodes_df : pd.DataFrame
+            Data frame containing node's features and coordinates.
+        coordinates_columns : List[str]
+            Names of coordinate columns.
+        """
         if nodes_df.index.dtype != np.int64:
             raise ValueError(f"Nodes indices must be int64. Found {nodes_df.index.dtype}.")
  
@@ -529,26 +600,40 @@ class BaseGraph:
 
     @property
     def n_allocated_nodes(self) -> int:
+        """Number of total allocated nodes."""
         return len(self._buffer2world)
 
     @property
     def n_empty_nodes(self) -> int:
+        """Number of nodes allocated but not used."""
         return len(self._empty_nodes)
     
     @property
     def n_nodes(self) -> int:
+        """Number of nodes in use."""
         return self.n_allocated_nodes - self.n_empty_nodes
     
     def nodes(self) -> np.ndarray:
+        """Indices of graph nodes."""
         return self._buffer2world[self._buffer2world != self._NODE_EMPTY_PTR]
     
     def coordinates(self, node_indices: Optional[ArrayLike] = None) -> np.ndarray:
+        """Coordinates of the given nodes, if none is provided it returns the coordinates of every node.
+        """
         node_indices = self._validate_nodes(node_indices)
         node_indices = self._map_world2buffer(node_indices)
         return self._coords[node_indices]
 
     def _realloc_nodes_buffers(self, size: int) -> None:
-        # TODO: doc
+        """Rellocs the nodes buffers and copies existing data.
+
+        NOTE: Currently, only increasing the buffers' size is implemented.
+
+        Parameters
+        ----------
+        size : int
+            New buffer size.
+        """
         prev_size = self.n_allocated_nodes
         size_diff = size - prev_size
 
@@ -572,7 +657,18 @@ class BaseGraph:
         # FIXME: self._feats --- how should it be pre-allocated?
 
     def add_node(self, index: int, coords: np.ndarray, features: Dict = {}) -> None:
-        # TODO
+        """Adds node to graph.
+
+        Parameters
+        ----------
+        index : int
+            Node index.
+        coords : np.ndarray
+            Node coordinates.
+        features : Dict, optional
+            Node features, by default {}
+        """
+        
         if self.n_empty_nodes == 0:
             self._realloc_nodes_buffers(
                 max(self.n_allocated_nodes * self._ALLOC_MULTIPLIER, self._ALLOC_MIN)
@@ -591,17 +687,27 @@ class BaseGraph:
         self._feats = pd.concat((self._feats, features))
 
     def remove_node(self, index: int) -> None:
-        # TODO
+        """Remove node of given `index`."""
         buffer_index = self._world2buffer.pop(index)
         self._remove_node_edges(buffer_index)
         self._buffer2world[buffer_index] = self._NODE_EMPTY_PTR
         self._empty_nodes.append(buffer_index)
 
     def _remove_node_edges(self, node_buffer_index: int) -> None:
+        """Abstract method, removes node at given buffer index."""
         raise NotImplementedError
 
     def _realloc_edges_buffers(self, n_edges: int) -> None:
-        # TODO: doc
+        """Reallocs the edges buffer and copies existing data.
+
+        NOTE: Currently, only increasing the buffers' size is implemented.
+
+        Parameters
+        ----------
+        n_edges : int
+            New number of edges.
+        """
+
         # augmenting size to match dummy edges
         size = n_edges * self._EDGE_DUPLICATION
         prev_size = self.n_allocated_edges * self._EDGE_DUPLICATION
@@ -629,17 +735,22 @@ class BaseGraph:
 
     @property
     def n_allocated_edges(self) -> int:
+        """Number of total allocated edges."""
         return len(self._edges_buffer) // (self._EDGE_DUPLICATION * self._EDGE_SIZE)
 
     @property
     def n_empty_edges(self) -> int:
+        """Number of allocated edges but not used."""
         return self.n_allocated_edges - self.n_edges
     
     @property
     def n_edges(self) -> int:
+        """Number of edges in use."""
         return self._n_edges
 
     def _validate_nodes(self, node_indices: Optional[ArrayLike] = None) -> np.ndarray:
+        """Converts and validates the nodes indices."""
+
         # NOTE: maybe the nodes could be mappend inside this function
         if node_indices is None:
             return self.nodes()
@@ -647,18 +758,19 @@ class BaseGraph:
         node_indices = np.atleast_1d(node_indices)
 
         if not np.issubdtype(node_indices.dtype, np.integer):
-            return ValueError(f"Node indices must be integer. Found {node_indices.dtype}.")
+            raise ValueError(f"Node indices must be integer. Found {node_indices.dtype}.")
  
         if node_indices.ndim != 1:
-            return ValueError(f"Node indices must be 1-dimensional. Found {node_indices.ndim}-dimensional.")
+            raise ValueError(f"Node indices must be 1-dimensional. Found {node_indices.ndim}-dimensional.")
         
         return node_indices
 
     def _validate_edges(self, edges: ArrayLike) -> np.ndarray:
+        """Converts and validates the edges."""
         edges = np.atleast_2d(edges)
 
         if not np.issubdtype(edges.dtype, np.integer):
-            return ValueError(f"Edges must be integer. Found {edges.dtype}.")
+            raise ValueError(f"Edges must be integer. Found {edges.dtype}.")
 
         if edges.ndim != 2:
             raise ValueError(f"Edges must be 1- or 2-dimensional. Found {edges.ndim}-dimensional.")
@@ -673,9 +785,15 @@ class BaseGraph:
         raise NotImplementedError
 
     def add_edges(self, edges: ArrayLike) -> None:
-        # TODO: 
-        #   - doc
-        #   - edges features
+        """Add edges into the graph.
+
+        TODO : add parameter for edges features
+
+        Parameters
+        ----------
+        edges : ArrayLike
+            A list of 2-dimensional tuples or an Nx2 array with a pair of nodes indices.
+        """
         edges = self._validate_edges(edges)
 
         if self.n_empty_edges < len(edges):
@@ -687,7 +805,13 @@ class BaseGraph:
         raise NotImplementedError
     
     def remove_edges(self, edges: ArrayLike) -> None:
-        # TODO: docs
+        """Remove edges from the graph.
+
+        Parameters
+        ----------
+        edges : ArrayLike
+            A list of 2-dimensional tuples or an Nx2 array with a pair of nodes indices.
+        """
         edges = self._validate_edges(edges)
         edges = self._map_world2buffer(edges)
         self._remove_edges(edges)
@@ -703,17 +827,30 @@ class BaseGraph:
 
     def _iterate_edges(
         self,
-        node_indices: ArrayLike,
+        node_world_indices: ArrayLike,
         node2edges: np.ndarray,
         iterate_edges_func: Callable[[np.ndarray, np.ndarray], List[np.ndarray]],
     ) -> List[np.ndarray]:
+        """Helper function to iterate over any kind of edges.
+
+        Parameters
+        ----------
+        node_world_indices : ArrayLike
+            Nodes world indices.
+        node2edges : np.ndarray
+            Mapping from nodes to edges (edges linked list heads).
+        iterate_edges_func : Callable[[np.ndarray, np.ndarray], List[np.ndarray]]
+            Function that iterates the edges from `edges_ptr_indices` and `edges_buffer`.
+
+        Returns
+        -------
+        List[np.ndarray]
+            List of N_i x 2 arrays, where N_i is the number of edges at the ith node.
         """
-        TODO: doc
-        """
-        node_indices = self._validate_nodes(node_indices)
+        node_world_indices = self._validate_nodes(node_world_indices)
 
         flat_edges = iterate_edges_func(
-            node2edges[self._map_world2buffer(node_indices)],
+            node2edges[self._map_world2buffer(node_world_indices)],
             self._edges_buffer,
         )
         return [
@@ -723,7 +860,17 @@ class BaseGraph:
 
 
 class UndirectedGraph(BaseGraph):
-    # TODO: doc
+    """Undirected graph class.
+
+    Parameters
+    ----------
+    n_nodes : int
+        Number of nodes to allocate to graph.
+    ndim : int
+        Number of spatial dimensions of graph.
+    n_edges : int
+        Number of edges of the graph.
+    """
 
     _EDGE_DUPLICATION = 2
     _EDGE_SIZE = _UN_EDGE_SIZE
@@ -738,9 +885,21 @@ class UndirectedGraph(BaseGraph):
             self._node2edges,
         )
 
-    def edges(self, node_indices: Optional[ArrayLike] = None) -> List[np.ndarray]:
+    def edges(self, nodes: Optional[ArrayLike] = None) -> List[np.ndarray]:
+        """Returns the edges of the given nodes, if none is provided all edges are returned.
+
+        Parameters
+        ----------
+        nodes : Optional[ArrayLike], optional
+            Node indices, by default None
+
+        Returns
+        -------
+        List[np.ndarray]
+            List of N_i x 2 arrays, where N_i is the number of edges at the ith node.
+        """
         return self._iterate_edges(
-            node_indices,
+            nodes,
             node2edges=self._node2edges,
             iterate_edges_func=_iterate_undirected_edges,
         )
@@ -757,7 +916,17 @@ class UndirectedGraph(BaseGraph):
 
 
 class DirectedGraph(BaseGraph):
-    # TODO: doc
+    """Directed graph class.
+
+    Parameters
+    ----------
+    n_nodes : int
+        Number of nodes to allocate to graph.
+    ndim : int
+        Number of spatial dimensions of graph.
+    n_edges : int
+        Number of edges of the graph.
+    """
 
     _EDGE_DUPLICATION = 1
     _EDGE_SIZE = _DI_EDGE_SIZE
@@ -772,6 +941,15 @@ class DirectedGraph(BaseGraph):
         nodes_df: pd.DataFrame,
         coordinates_columns: List[str],
     ) -> None:
+        """Initializes graph nodes from data frame data. Graph nodes will be indexed by data frame indices.
+
+        Parameters
+        ----------
+        nodes_df : pd.DataFrame
+            Data frame containing node's features and coordinates.
+        coordinates_columns : List[str]
+            Names of coordinate columns.
+        """
         super().init_nodes_from_dataframe(nodes_df, coordinates_columns)
         n_nodes = len(nodes_df)
         if len(self._node2tgt_edges) < n_nodes:
@@ -797,16 +975,40 @@ class DirectedGraph(BaseGraph):
             self._node2tgt_edges,
         )
  
-    def source_edges(self, node_indices: Optional[ArrayLike] = None) -> List[np.ndarray]:
+    def source_edges(self, nodes: Optional[ArrayLike] = None) -> List[np.ndarray]:
+        """Returns the source edges (outgoing) of the given nodes, if none is provided all source edges are returned.
+
+        Parameters
+        ----------
+        nodes : Optional[ArrayLike], optional
+            Node indices, by default None
+
+        Returns
+        -------
+        List[np.ndarray]
+            List of N_i x 2 arrays, where N_i is the number of edges at the ith node.
+        """
         return self._iterate_edges(
-            node_indices,
+            nodes,
             node2edges=self._node2edges,
             iterate_edges_func=_iterate_directed_source_edges,
         )
 
-    def target_edges(self, node_indices: Optional[ArrayLike] = None) -> List[np.ndarray]:
+    def target_edges(self, nodes: Optional[ArrayLike] = None) -> List[np.ndarray]:
+        """Returns the target edges (incoming) of the given nodes, if none is provided all target edges are returned.
+
+        Parameters
+        ----------
+        nodes : Optional[ArrayLike], optional
+            Node indices, by default None
+
+        Returns
+        -------
+        List[np.ndarray]
+            List of N_i x 2 arrays, where N_i is the number of edges at the ith node.
+        """
         return self._iterate_edges(
-            node_indices,
+            nodes,
             node2edges=self._node2tgt_edges,
             iterate_edges_func=_iterate_directed_target_edges,
         )

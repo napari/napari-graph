@@ -198,6 +198,8 @@ class TestUndirectedGraph(TestGraph):
 
         assert self.graph.n_allocated_edges == 5
 
+        self.assert_empty_linked_list_pairs_are_neighbors()
+
     def test_node_removal(self) -> None:
         nodes = [3, 4, 1]
         original_size = self.graph.n_nodes
@@ -211,7 +213,10 @@ class TestUndirectedGraph(TestGraph):
             
             assert node not in self.graph.nodes()
             assert self.graph.n_nodes == original_size - i - 1
+        
+        self.assert_empty_linked_list_pairs_are_neighbors()
 
+    def assert_empty_linked_list_pairs_are_neighbors(self) -> None:
         # testing if empty edges linked list pairs are neighbors
         empty_idx = self.graph._empty_edge_idx
         while empty_idx != _EDGE_EMPTY_PTR:
@@ -250,4 +255,3 @@ def test_benchmark_construction_speed() -> None:
     graph.add_edges_from(edges)
 
     print('networkx init time', default_timer() - start)
-
