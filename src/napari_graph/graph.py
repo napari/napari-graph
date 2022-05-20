@@ -382,7 +382,6 @@ class BaseGraph:
     _LL_EDGE_POS: int = ...
 
     def __init__(self, n_nodes: int, ndim: int, n_edges: int):
-        self._active = np.ones(n_nodes, dtype=bool)
         self._coords = np.zeros((n_nodes, ndim), dtype=np.float32)
         self._feats: Dict[str, np.ndarray] = {}
 
@@ -411,16 +410,14 @@ class BaseGraph:
 
         if  n_nodes > self._coords.shape[0] or len(coordinates_columns) != self._coords.shape[1]:
             self._coords = nodes_df[coordinates_columns].values.astype(np.float32, copy=True)
-            self._active = np.ones(n_nodes, dtype=bool)
             self._node2edges = np.full(n_nodes, fill_value=_EDGE_EMPTY_PTR, dtype=int)
             self._buffer2world = nodes_df.index.values.astype(np.uint64, copy=True)
             self._empty_nodes = []
         else:
             self._coords[:n_nodes] = nodes_df[coordinates_columns].values
-            self._active.fill(True)
             self._node2edges.fill(_EDGE_EMPTY_PTR)
             self._buffer2world[:n_nodes] = nodes_df.index.values
-            self._empty_nodes = list(reversed(range(n_nodes, len(self._active))))  # reversed so we add nodes to the end of it
+            self._empty_nodes = list(reversed(range(n_nodes, len(self._buffer2world))))  # reversed so we add nodes to the end of it
 
         self._world2buffer = _create_world2buffer_map(self._buffer2world[:n_nodes])
 
