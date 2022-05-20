@@ -5,10 +5,9 @@ import pandas as pd
 from numpy.typing import ArrayLike
 from typing import Tuple, Callable, List, Type
 
-from napari_graph.graph import (
-    BaseGraph, UndirectedGraph, DirectedGraph,
-    _EDGE_EMPTY_PTR, _LL_UN_EDGE_POS, _UN_EDGE_SIZE,
-)
+from napari_graph import UndirectedGraph, DirectedGraph
+from napari_graph._base_graph import BaseGraph, _EDGE_EMPTY_PTR
+from napari_graph.undirected_graph import _LL_UN_EDGE_POS, _UN_EDGE_SIZE
 
 
 def make_graph_dataframe(size: int, sparsity: float) -> Tuple[pd.DataFrame, np.ndarray]:
@@ -231,7 +230,7 @@ def test_benchmark_construction_speed() -> None:
     from timeit import default_timer
     import networkx as nx
 
-    nodes_df, edges = make_graph_dataframe(10000, 0.001)
+    nodes_df, edges = make_graph_dataframe(50000, 0.001)
 
     print('# edges', len(edges))
 
