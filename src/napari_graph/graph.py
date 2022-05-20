@@ -448,21 +448,25 @@ class BaseGraph:
     _EDGE_SIZE: int = ...
     _LL_EDGE_POS: int = ...
 
+    # allocation multiplying factor
+    _ALLOC_MULTIPLIER = 1.1
+
     def __init__(self, n_nodes: int, ndim: int, n_edges: int):
+
+        # node-wise buffers
         self._coords = np.zeros((n_nodes, ndim), dtype=np.float32)
         self._feats: Dict[str, np.ndarray] = {}
-
-        self._empty_nodes: List[int] = []
+        self._empty_nodes: List[int] = list(range(n_nodes))
         self._node2edges = np.full(n_nodes, fill_value=_EDGE_EMPTY_PTR, dtype=int)
-        self._empty_edge_idx = 0 if n_edges > 0 else _EDGE_EMPTY_PTR
-        self._n_edges = 0
-
-        self._edges_buffer = np.full(n_edges * self._EDGE_DUPLICATION * self._EDGE_SIZE, fill_value=_EDGE_EMPTY_PTR, dtype=int)
-        self._edges_buffer[self._LL_EDGE_POS : -self._EDGE_SIZE :self._EDGE_SIZE] = np.arange(1, self._EDGE_DUPLICATION * n_edges)
-
         self._world2buffer = typed.Dict.empty(types.int64, types.int64)
         self._buffer2world = np.full(n_nodes, fill_value=self._NODE_EMPTY_PTR, dtype=int)
-    
+ 
+        # edge-wise buffers
+        self._empty_edge_idx = 0 if n_edges > 0 else _EDGE_EMPTY_PTR
+        self._n_edges = 0
+        self._edges_buffer = np.full(n_edges * self._EDGE_DUPLICATION * self._EDGE_SIZE, fill_value=_EDGE_EMPTY_PTR, dtype=int)
+        self._edges_buffer[self._LL_EDGE_POS : -self._EDGE_SIZE :self._EDGE_SIZE] = np.arange(1, self._EDGE_DUPLICATION * n_edges)
+   
     def init_nodes_from_dataframe(
         self,
         nodes_df: pd.DataFrame,
@@ -493,9 +497,53 @@ class BaseGraph:
         #  - feats should be indexed by their pandas DataFrame index (world index)
         self._feats = nodes_df.drop(coordinates_columns, axis=1)
 
+    @property
+    def n_allocated_nodes(self) -> int:
+        return len(self._buffer2world)
+
+    @property
+    def n_empty_nodes(self) -> int:
+        return len(self._empty_nodes)
+    
+    @property
+    def n_nodes(self) -> int:
+        return self.n_allocated_nodes - self.n_empty_nodes
+
+    def _realloc_nodes_buffers(self, size: int) -> None:
+        # TODO: doc
+        prev_size = self.n_allocated_nodes
+        size_diff = size - prev_size
+
+        if size_diff < 0:
+            raise NotImplementedError("Node buffers size decrease not implemented.")
+
+        elif size_diff == 0:
+            raise ValueError("Tried to realloc to current buffer size.")
+
+        self._coords.resize((size, self._coords.shape[1])) # zero-filled
+        self._node2edges = np.append(
+            self._node2edges,
+            np.full(size_diff, fill_value=_EDGE_EMPTY_PTR, dtype=int),
+        )
+        self._buffer2world = np.append(
+            self._buffer2world,
+            np.full(size_diff, fill_value=self._NODE_EMPTY_PTR, dtype=int)
+        )
+        self._empty_nodes = list(range(prev_size, size))
+
+        # FIXME: self._feats --- how should it be pre-allocated?
+
     def add_node(self, index: int, coords: np.ndarray, features: Dict = {}) -> None:
         # TODO
-        raise NotImplementedError
+        if self.n_empty_nodes == 0:
+            self._realloc_nodes_buffers(self.n_allocated_nodes * self._ALLOC_MULTIPLIER)
+        
+        buffer_index = self._empty_nodes.pop()
+        self._coords[buffer_index, :] = coords
+        self._world2buffer[index] = buffer_index
+        self._buffer2world[buffer_index] = index
+        # FIXME: not efficient, how should we pre alloc the features?
+        self._feats = pd.concat(self._feats, pd.Series(features, index=index))
 
     def remove_node(self, index: int) -> None:
         # TODO
@@ -507,32 +555,32 @@ class BaseGraph:
     def _remove_node_edges(self, node_buffer_index: int) -> None:
         raise NotImplementedError
 
-    def _realloc_edges_buffer(self, n_edges: int) -> None:
+    def _realloc_edges_buffers(self, n_edges: int) -> None:
         # TODO: doc
         # augmenting size to match dummy edges
-        n_edges = n_edges * self._EDGE_DUPLICATION
-        old_n_allocated = self.n_allocated_edges * self._EDGE_DUPLICATION
-        n_allocated = n_edges - old_n_allocated
+        size = n_edges * self._EDGE_DUPLICATION
+        prev_size = self.n_allocated_edges * self._EDGE_DUPLICATION
+        diff_size = size - prev_size
 
-        if n_allocated < 0:
+        if diff_size < 0:
             raise NotImplementedError("Edge buffer size decrease not implemented.")
-        elif n_allocated == 0:
+        elif diff_size == 0:
             raise ValueError("Tried to realloc to current buffer size.")
 
-        old_buffer_size = len(self._edges_buffer)
-        buffer_size = n_edges * self._EDGE_SIZE
+        prev_buffer_size = len(self._edges_buffer)
 
-        new_edges_buffer = np.full(buffer_size, fill_value=-1, dtype=int)
-        new_edges_buffer[:len(self._edges_buffer)] = self._edges_buffer  # filling previous buffer data
-        self._edges_buffer = new_edges_buffer
+        self._edges_buffer = np.append(
+            self._edges_buffer,
+            np.full(diff_size * self._EDGE_SIZE, fill_value=_EDGE_EMPTY_PTR, dtype=int)
+        )
 
         # fills empty edges ptr
-        self._edges_buffer[old_buffer_size + self._LL_EDGE_POS : -self._EDGE_SIZE :self._EDGE_SIZE] =\
-             np.arange(old_n_allocated + 1, n_edges) 
+        self._edges_buffer[prev_buffer_size + self._LL_EDGE_POS : -self._EDGE_SIZE :self._EDGE_SIZE] =\
+             np.arange(prev_size + 1, size) 
 
         # appends existing empty edges linked list to the end of the new list
         self._edges_buffer[self._LL_EDGE_POS - self._EDGE_SIZE] = self._empty_edge_idx
-        self._empty_edge_idx = old_n_allocated
+        self._empty_edge_idx = prev_size
 
     @property
     def n_allocated_edges(self) -> int:
@@ -586,7 +634,7 @@ class BaseGraph:
         edges = self._validate_edges(edges)
 
         if self.n_empty_edges < len(edges):
-            self._realloc_edges_buffer(len(edges))
+            self._realloc_edges_buffers(len(edges))
 
         self._add_edges(edges)
     
@@ -598,6 +646,7 @@ class BaseGraph:
         edges = self._validate_edges(edges)
         edges = self._map_world2buffer(edges)
         self._remove_edges(edges)
+
         # FIXME: this can lead to inconsistency in the count if removing edges raises an error
         self._n_edges -= len(edges)
  
@@ -684,6 +733,14 @@ class DirectedGraph(BaseGraph):
             self._node2tgt_edges = np.full(n_nodes, fill_value=_EDGE_EMPTY_PTR, dtype=int)
         else:
             self._node2tgt_edges.fill(_EDGE_EMPTY_PTR)
+
+    def _realloc_nodes_buffers(self, size: int) -> None:
+        diff_size = size - self.n_allocated_nodes
+        super()._realloc_nodes_buffers(size)
+        self._node2tgt_edges = np.append(
+            self._node2tgt_edges,
+            np.full(diff_size, fill_value=self._NODE_EMPTY_PTR, dtype=int),
+        )
 
     def _add_edges(self, edges: np.ndarray) -> None:
         self._empty_edge_idx, self._n_edges = _add_directed_edges(
