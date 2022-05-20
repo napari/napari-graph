@@ -5,8 +5,10 @@ import pandas as pd
 from numpy.typing import ArrayLike
 from typing import Tuple, Callable, List, Type
 
-
-from napari_graph.graph import BaseGraph, UndirectedGraph, DirectedGraph
+from napari_graph.graph import (
+    BaseGraph, UndirectedGraph, DirectedGraph,
+    _EDGE_EMPTY_PTR, _LL_UN_EDGE_POS, _UN_EDGE_SIZE,
+)
 
 
 def make_graph_dataframe(size: int, sparsity: float) -> Tuple[pd.DataFrame, np.ndarray]:
@@ -86,6 +88,24 @@ def test_directed_init_from_dataframe(n_prealloc_edges: int) -> None:
     assert np.all(target_edges == edges[:, np.newaxis, :])
 
 
+@pytest.mark.parametrize("n_prealloc_nodes", [0, 3, 6, 12])
+def test_node_addition(n_prealloc_nodes: int) -> None:
+    size = 6
+    ndim = 3
+
+    indices = np.random.choice(range(100), size=size, replace=False)
+    coords = np.random.randn(size, ndim)
+
+    graph = DirectedGraph(n_prealloc_nodes, ndim, 0)
+    for i in range(size):
+        graph.add_node(indices[i], coords[i])
+        assert graph.n_nodes == i + 1
+    
+    np.testing.assert_allclose(graph._coords[:graph.n_nodes], coords)
+    np.testing.assert_array_equal(graph._buffer2world[:graph.n_nodes], indices)
+    np.testing.assert_array_equal(graph._map_world2buffer(indices), range(size))
+
+
 class TestGraph:
     _GRAPH_CLASS: Type[BaseGraph] = ...
 
@@ -141,6 +161,23 @@ class TestDirectedGraph(TestGraph):
         assert not self.contains((2, 3), self.graph.source_edges())
 
         assert self.graph.n_allocated_edges == 5
+    
+    def test_node_removal(self) -> None:
+        nodes = [3, 4, 1]
+        original_size = self.graph.n_nodes
+
+        for i in range(len(nodes)):
+            node = nodes[i]
+            self.graph.remove_node(node)
+
+            for edge in self.graph.source_edges():
+                assert node not in edge
+            
+            for edge in self.graph.target_edges():
+                assert node not in edge
+            
+            assert node not in self.graph.nodes()
+            assert self.graph.n_nodes == original_size - i - 1
 
 
 class TestUndirectedGraph(TestGraph):
@@ -161,6 +198,28 @@ class TestUndirectedGraph(TestGraph):
 
         assert self.graph.n_allocated_edges == 5
 
+    def test_node_removal(self) -> None:
+        nodes = [3, 4, 1]
+        original_size = self.graph.n_nodes
+
+        for i in range(len(nodes)):
+            node = nodes[i]
+            self.graph.remove_node(node)
+
+            for edge in self.graph.edges():
+                assert node not in edge
+            
+            assert node not in self.graph.nodes()
+            assert self.graph.n_nodes == original_size - i - 1
+
+        # testing if empty edges linked list pairs are neighbors
+        empty_idx = self.graph._empty_edge_idx
+        while empty_idx != _EDGE_EMPTY_PTR:
+            next_empty_idx = self.graph._edges_buffer[empty_idx * _UN_EDGE_SIZE + _LL_UN_EDGE_POS]
+            assert empty_idx + 1 == next_empty_idx
+            # skipping one
+            empty_idx = self.graph._edges_buffer[next_empty_idx * _UN_EDGE_SIZE + _LL_UN_EDGE_POS]
+        
 
 def test_benchmark_construction_speed() -> None:
     # FIXME: remove this, maybe create an airspeed velocity CI

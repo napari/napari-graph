@@ -183,6 +183,10 @@ def _remove_edge(
                 node2edges[src_node] = next_edge_idx
             else:
                 edges_buffer[prev_buffer_idx + ll_edge_pos] = next_edge_idx
+
+            # clean up not necessary but good practice
+            edges_buffer[buffer_idx:buffer_idx + edge_size] = _EDGE_EMPTY_PTR
+
             edges_buffer[buffer_idx + ll_edge_pos] = empty_idx
             return idx
         # moving to next edge
@@ -228,6 +232,7 @@ def _remove_undirected_edges(
     return empty_idx
 
 
+@njit
 def _remove_incident_undirected_edges(
     node: int,
     empty_idx: int,
@@ -240,12 +245,12 @@ def _remove_incident_undirected_edges(
     idx = node2edges[node]
 
     while idx != _EDGE_EMPTY_PTR:
-        buffer_idx = idx * _DI_EDGE_SIZE
+        buffer_idx = idx * _UN_EDGE_SIZE
         next_idx = edges_buffer[buffer_idx + _LL_UN_EDGE_POS]
-        # checking if sibling edges if before or after current node
+        # checking if sibling edges is before or after current node
         if (buffer_idx > 0 and
-            edges_buffer[buffer_idx - _DI_EDGE_SIZE + 1] == node and
-            edges_buffer[buffer_idx - _DI_EDGE_SIZE] == edges_buffer[buffer_idx + 1]):
+            edges_buffer[buffer_idx - _UN_EDGE_SIZE + 1] == edges_buffer[buffer_idx] and
+            edges_buffer[buffer_idx - _UN_EDGE_SIZE] == edges_buffer[buffer_idx + 1]):
 
             src_node = edges_buffer[buffer_idx + 1]
             tgt_node = edges_buffer[buffer_idx]
@@ -309,6 +314,7 @@ def _remove_directed_edge(
     node2tgt_edges: np.ndarray,
 ) -> int:
 
+    # must be executed before default edge removal and cleanup
     _remove_target_edge(src_node, tgt_node, edges_buffer, node2tgt_edges)
 
     empty_idx = _remove_edge(
@@ -334,7 +340,8 @@ def _remove_directed_edges(
     return empty_idx
 
 
-def _remove_incident_directed_edges(
+@njit
+def _remove_unidirectional_incident_edges(
     node: int,
     empty_idx: int,
     n_edges: int,
@@ -364,6 +371,28 @@ def _remove_incident_directed_edges(
         idx = next_idx
         n_edges = n_edges - 1
     
+    return empty_idx, n_edges
+
+
+@njit
+def _remove_incident_directed_edges(
+    node: int,
+    empty_idx: int,
+    n_edges: int,
+    edges_buffer: np.ndarray,
+    node2src_edges: np.ndarray,
+    node2tgt_edges: np.ndarray,
+) -> Tuple[int, int]:
+    # does it need to be jitted? why not
+
+    empty_idx, n_edges = _remove_unidirectional_incident_edges(
+        node, empty_idx, n_edges, edges_buffer, node2src_edges, node2tgt_edges, is_target=0,
+    )
+
+    empty_idx, n_edges = _remove_unidirectional_incident_edges(
+        node, empty_idx, n_edges, edges_buffer, node2src_edges, node2tgt_edges, is_target=1,
+    )
+
     return empty_idx, n_edges
 
 
@@ -448,15 +477,16 @@ class BaseGraph:
     _EDGE_SIZE: int = ...
     _LL_EDGE_POS: int = ...
 
-    # allocation multiplying factor
+    # allocation constants
     _ALLOC_MULTIPLIER = 1.1
+    _ALLOC_MIN = 25
 
     def __init__(self, n_nodes: int, ndim: int, n_edges: int):
 
         # node-wise buffers
         self._coords = np.zeros((n_nodes, ndim), dtype=np.float32)
-        self._feats: Dict[str, np.ndarray] = {}
-        self._empty_nodes: List[int] = list(range(n_nodes))
+        self._feats = pd.DataFrame()
+        self._empty_nodes: List[int] = list(reversed(range(n_nodes)))
         self._node2edges = np.full(n_nodes, fill_value=_EDGE_EMPTY_PTR, dtype=int)
         self._world2buffer = typed.Dict.empty(types.int64, types.int64)
         self._buffer2world = np.full(n_nodes, fill_value=self._NODE_EMPTY_PTR, dtype=int)
@@ -508,6 +538,14 @@ class BaseGraph:
     @property
     def n_nodes(self) -> int:
         return self.n_allocated_nodes - self.n_empty_nodes
+    
+    def nodes(self) -> np.ndarray:
+        return self._buffer2world[self._buffer2world != self._NODE_EMPTY_PTR]
+    
+    def coordinates(self, node_indices: Optional[ArrayLike] = None) -> np.ndarray:
+        node_indices = self._validate_nodes(node_indices)
+        node_indices = self._map_world2buffer(node_indices)
+        return self._coords[node_indices]
 
     def _realloc_nodes_buffers(self, size: int) -> None:
         # TODO: doc
@@ -529,21 +567,28 @@ class BaseGraph:
             self._buffer2world,
             np.full(size_diff, fill_value=self._NODE_EMPTY_PTR, dtype=int)
         )
-        self._empty_nodes = list(range(prev_size, size))
+        self._empty_nodes = list(reversed(range(prev_size, size)))
 
         # FIXME: self._feats --- how should it be pre-allocated?
 
     def add_node(self, index: int, coords: np.ndarray, features: Dict = {}) -> None:
         # TODO
         if self.n_empty_nodes == 0:
-            self._realloc_nodes_buffers(self.n_allocated_nodes * self._ALLOC_MULTIPLIER)
+            self._realloc_nodes_buffers(
+                max(self.n_allocated_nodes * self._ALLOC_MULTIPLIER, self._ALLOC_MIN)
+            )
         
         buffer_index = self._empty_nodes.pop()
         self._coords[buffer_index, :] = coords
         self._world2buffer[index] = buffer_index
         self._buffer2world[buffer_index] = index
         # FIXME: not efficient, how should we pre alloc the features?
-        self._feats = pd.concat(self._feats, pd.Series(features, index=index))
+        if len(features) > 0:
+            features = pd.DataFrame([features], index=[index])
+        else:
+            features = pd.DataFrame(np.NaN, index=[index], columns=self._feats.keys())
+
+        self._feats = pd.concat((self._feats, features))
 
     def remove_node(self, index: int) -> None:
         # TODO
@@ -597,7 +642,7 @@ class BaseGraph:
     def _validate_nodes(self, node_indices: Optional[ArrayLike] = None) -> np.ndarray:
         # NOTE: maybe the nodes could be mappend inside this function
         if node_indices is None:
-            return self._buffer2world[self._buffer2world != self._NODE_EMPTY_PTR]
+            return self.nodes()
         
         node_indices = np.atleast_1d(node_indices)
 
@@ -700,14 +745,14 @@ class UndirectedGraph(BaseGraph):
             iterate_edges_func=_iterate_undirected_edges,
         )
     
-    def _remove_node_edges(self, node_buffer_index: int) -> None:
-        self._empty_edge_idx, self._n_edges = _remove_incident_undirected_edges(
-            node_buffer_index, self._empty_edge_idx, self._n_edges, self._edges_buffer, self._node2edges
-        )
-
     def _remove_edges(self, edges: np.ndarray) -> None:
         self._empty_edge_idx = _remove_undirected_edges(
             edges, self._empty_edge_idx, self._edges_buffer, self._node2edges
+        )
+
+    def _remove_node_edges(self, node_buffer_index: int) -> None:
+        self._empty_edge_idx, self._n_edges = _remove_incident_undirected_edges(
+            node_buffer_index, self._empty_edge_idx, self._n_edges, self._edges_buffer, self._node2edges
         )
 
 
@@ -774,5 +819,5 @@ class DirectedGraph(BaseGraph):
     def _remove_node_edges(self, node_buffer_index: int) -> None:
         self._empty_edge_idx, self._n_edges = _remove_incident_directed_edges(
             node_buffer_index, self._empty_edge_idx, self._n_edges, self._edges_buffer,
-            self._node2edges, self._node2tgt_edges,
+            self._node2edges, self._node2tgt_edges
         )
