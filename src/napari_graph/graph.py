@@ -228,23 +228,59 @@ def _remove_undirected_edges(
     return empty_idx
 
 
+def _remove_incident_undirected_edges(
+    node: int,
+    empty_idx: int,
+    n_edges: int,
+    edges_buffer: np.ndarray,
+    node2edges: np.ndarray,
+) -> Tuple[int, int]:
+    # the edges are removed such that the empty edges linked list contains
+    # two positions adjacent in memory so we can serialize the edges using numpy vectorization
+    idx = node2edges[node]
+
+    while idx != _EDGE_EMPTY_PTR:
+        buffer_idx = idx * _DI_EDGE_SIZE
+        next_idx = edges_buffer[buffer_idx + _LL_UN_EDGE_POS]
+        # checking if sibling edges if before or after current node
+        if (buffer_idx > 0 and
+            edges_buffer[buffer_idx - _DI_EDGE_SIZE + 1] == node and
+            edges_buffer[buffer_idx - _DI_EDGE_SIZE] == edges_buffer[buffer_idx + 1]):
+
+            src_node = edges_buffer[buffer_idx + 1]
+            tgt_node = edges_buffer[buffer_idx]
+        else:
+            src_node = edges_buffer[buffer_idx]
+            tgt_node = edges_buffer[buffer_idx + 1]
+
+        empty_idx = _remove_edge(
+            tgt_node, src_node, empty_idx, edges_buffer, node2edges, _UN_EDGE_SIZE, _LL_UN_EDGE_POS
+        )
+
+        empty_idx = _remove_edge(
+            src_node, tgt_node, empty_idx, edges_buffer, node2edges, _UN_EDGE_SIZE, _LL_UN_EDGE_POS
+        )
+
+        idx = next_idx
+        n_edges = n_edges - 1
+
+    return empty_idx, n_edges
+
+
 @njit(inline='always')
 def _remove_target_edge(
     src_node: int,
     tgt_node: int,
-    empty_idx: int,
     edges_buffer: np.ndarray,
     node2edges: np.ndarray,
-    edge_size: int,
-    ll_edge_pos: int,
-) -> int:
+) -> None:
 
     idx = node2edges[tgt_node]  # different indexing from normal edge
     prev_buffer_idx = _EDGE_EMPTY_PTR
 
     while idx != _EDGE_EMPTY_PTR:
-        buffer_idx = idx * edge_size
-        next_edge_idx = edges_buffer[buffer_idx + ll_edge_pos] 
+        buffer_idx = idx * _DI_EDGE_SIZE
+        next_edge_idx = edges_buffer[buffer_idx + _LL_DI_EDGE_POS + 1] 
 
         # edge found
         if edges_buffer[buffer_idx] == src_node:   # different indexing from normal edge
@@ -252,8 +288,8 @@ def _remove_target_edge(
             if prev_buffer_idx == _EDGE_EMPTY_PTR:
                 node2edges[src_node] = next_edge_idx
             else:
-                edges_buffer[prev_buffer_idx + ll_edge_pos] = next_edge_idx
-            edges_buffer[buffer_idx + ll_edge_pos] = empty_idx
+                edges_buffer[prev_buffer_idx + _LL_DI_EDGE_POS + 1] = next_edge_idx
+            edges_buffer[buffer_idx + _LL_DI_EDGE_POS + 1] = _EDGE_EMPTY_PTR
             return
 
         # moving to next edge
@@ -273,9 +309,7 @@ def _remove_directed_edge(
     node2tgt_edges: np.ndarray,
 ) -> int:
 
-    _remove_target_edge(
-        src_node, tgt_node, empty_idx, edges_buffer, node2tgt_edges, _DI_EDGE_SIZE, _LL_DI_EDGE_POS + 1,
-    )
+    _remove_target_edge(src_node, tgt_node, edges_buffer, node2tgt_edges)
 
     empty_idx = _remove_edge(
         src_node, tgt_node, empty_idx, edges_buffer, node2src_edges, _DI_EDGE_SIZE, _LL_DI_EDGE_POS,
@@ -298,6 +332,39 @@ def _remove_directed_edges(
             edges[i, 0], edges[i, 1], empty_idx, edges_buffer, node2src_edges, node2tgt_edges,
         )
     return empty_idx
+
+
+def _remove_incident_directed_edges(
+    node: int,
+    empty_idx: int,
+    n_edges: int,
+    edges_buffer: np.ndarray,
+    node2src_edges: np.ndarray,
+    node2tgt_edges: np.ndarray,
+    is_target: int,
+) -> Tuple[int, int]:
+
+    if is_target:
+        idx = node2tgt_edges[node]
+    else:
+        idx = node2src_edges[node]
+
+    while idx != _EDGE_EMPTY_PTR:
+        buffer_idx = idx * _DI_EDGE_SIZE
+        next_idx = edges_buffer[buffer_idx + _LL_DI_EDGE_POS + is_target]
+
+        src_node = edges_buffer[buffer_idx]
+        tgt_node = edges_buffer[buffer_idx + 1]
+
+        _remove_target_edge(src_node, tgt_node, edges_buffer, node2tgt_edges)
+        empty_idx = _remove_edge(
+            src_node, tgt_node, empty_idx, edges_buffer, node2src_edges, _DI_EDGE_SIZE, _LL_DI_EDGE_POS,
+        )
+
+        idx = next_idx
+        n_edges = n_edges - 1
+    
+    return empty_idx, n_edges
 
 
 ################################
@@ -429,11 +496,17 @@ class BaseGraph:
     def add_node(self, index: int, coords: np.ndarray, features: Dict = {}) -> None:
         # TODO
         raise NotImplementedError
-    
+
     def remove_node(self, index: int) -> None:
         # TODO
+        buffer_index = self._world2buffer.pop(index)
+        self._remove_node_edges(buffer_index)
+        self._buffer2world[buffer_index] = self._NODE_EMPTY_PTR
+        self._empty_nodes.append(buffer_index)
+
+    def _remove_node_edges(self, node_buffer_index: int) -> None:
         raise NotImplementedError
-    
+
     def _realloc_edges_buffer(self, n_edges: int) -> None:
         # TODO: doc
         # augmenting size to match dummy edges
@@ -578,6 +651,11 @@ class UndirectedGraph(BaseGraph):
             iterate_edges_func=_iterate_undirected_edges,
         )
     
+    def _remove_node_edges(self, node_buffer_index: int) -> None:
+        self._empty_edge_idx, self._n_edges = _remove_incident_undirected_edges(
+            node_buffer_index, self._empty_edge_idx, self._n_edges, self._edges_buffer, self._node2edges
+        )
+
     def _remove_edges(self, edges: np.ndarray) -> None:
         self._empty_edge_idx = _remove_undirected_edges(
             edges, self._empty_edge_idx, self._edges_buffer, self._node2edges
@@ -634,4 +712,10 @@ class DirectedGraph(BaseGraph):
     def _remove_edges(self, edges: np.ndarray) -> None:
         self._empty_edge_idx = _remove_directed_edges(
             edges, self._empty_edge_idx, self._edges_buffer, self._node2edges, self._node2tgt_edges,
+        )
+
+    def _remove_node_edges(self, node_buffer_index: int) -> None:
+        self._empty_edge_idx, self._n_edges = _remove_incident_directed_edges(
+            node_buffer_index, self._empty_edge_idx, self._n_edges, self._edges_buffer,
+            self._node2edges, self._node2tgt_edges,
         )
