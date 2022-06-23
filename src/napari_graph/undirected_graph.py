@@ -1,5 +1,5 @@
 
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Union
 from numpy.typing import ArrayLike
 
 import numpy as np
@@ -187,23 +187,30 @@ class UndirectedGraph(BaseGraph):
             self._node2edges,
         )
 
-    def edges(self, nodes: Optional[ArrayLike] = None) -> List[np.ndarray]:
-        """Returns the edges of the given nodes, if none is provided all edges are returned.
+    def edges(self, nodes: Optional[ArrayLike] = None, mode: str = 'indices') -> Union[List[np.ndarray], np.ndarray]:
+        """Returns the edges data of the given nodes, if none is provided all edges are returned.
+           NOTE: when `nodes` is None the returned edges are duplicated, such that, 
+                 if (u, v) was inserted this function will return both (u, v) and (v, u).
 
         Parameters
         ----------
         nodes : Optional[ArrayLike], optional
             Node indices, by default None
+        mode : str
+            Type of data queried from the edges. For example, `indices` or `coords`.
 
         Returns
         -------
         List[np.ndarray]
-            List of N_i x 2 arrays, where N_i is the number of edges at the ith node.
+            List of (N_i) x 2 x D arrays, where N_i is the number of edges at the ith node.
+            D is the dimensionality of `coords` when mode == `coords` and it's ignored
+            when mode == `indices`. N_i dimension is ignored when N_i is 1.
         """
-        return self._iterate_edges(
+        return self._iterate_edges_generic(
             nodes,
             node2edges=self._node2edges,
             iterate_edges_func=_iterate_undirected_edges,
+            mode=mode,
         )
     
     def _remove_edges(self, edges: np.ndarray) -> None:

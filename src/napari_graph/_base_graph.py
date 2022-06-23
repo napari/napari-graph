@@ -1,5 +1,5 @@
 
-from typing import Dict, List, Callable, Optional
+from typing import Dict, List, Callable, Optional, Union
 from numpy.typing import ArrayLike
 
 import numpy as np
@@ -443,8 +443,8 @@ class BaseGraph:
         node_world_indices: ArrayLike,
         node2edges: np.ndarray,
         iterate_edges_func: Callable[[np.ndarray, np.ndarray], List[np.ndarray]],
-    ) -> List[np.ndarray]:
-        """Helper function to iterate over any kind of edges.
+    ) -> List[List]:
+        """Helper function to iterate over any kind of edges and return their buffer indices.
 
         Parameters
         ----------
@@ -457,8 +457,8 @@ class BaseGraph:
 
         Returns
         -------
-        List[np.ndarray]
-            List of N_i x 2 arrays, where N_i is the number of edges at the ith node.
+        List[List]
+            List of Lists of length 2 * N_i, where N_i is the number of edges at the ith node.
         """
         node_world_indices = self._validate_nodes(node_world_indices)
 
@@ -466,7 +466,54 @@ class BaseGraph:
             node2edges[self._map_world2buffer(node_world_indices)],
             self._edges_buffer,
         )
-        return [
-            self._buffer2world[e].reshape(-1, 2) if len(e) > 0 else np.empty((0,2))
-            for e in flat_edges
-        ]
+        return flat_edges
+
+    def _iterate_edges_generic(
+        self,
+        node_world_indices: ArrayLike,
+        node2edges: np.ndarray,
+        iterate_edges_func: Callable[[np.ndarray, np.ndarray], List[np.ndarray]],
+        mode: str,
+    ) -> Union[List[np.ndarray], np.ndarray]:
+        """Iterate over any kind of edges and return their world indices.
+
+        Parameters
+        ----------
+        node_world_indices : ArrayLike
+            Nodes world indices.
+        node2edges : np.ndarray
+            Mapping from nodes to edges (edges linked list heads).
+        iterate_edges_func : Callable[[np.ndarray, np.ndarray], List[np.ndarray]]
+            Function that iterates the edges from `edges_ptr_indices` and `edges_buffer`.
+        mode : str
+            Type of data queried from the edges. For example, `indices` or `coords`.
+
+        Returns
+        -------
+        List[np.ndarray]
+            List of N_i x 2 x D arrays, where N_i is the number of edges at the ith node.
+            D is the dimensionality of `coords` when mode == `coords` and it's ignored
+            when mode == `indices`. 
+        """
+        flat_edges = self._iterate_edges(node_world_indices, node2edges, iterate_edges_func)
+
+        if mode.lower() == 'indices':
+            edges_data = [
+                self._buffer2world[e].reshape(-1, 2) if len(e) > 0 else np.empty((0, 2))
+                for e in flat_edges
+            ]
+        elif mode.lower() == 'coords':
+            dim = self._coords.shape[1]
+            edges_data = [
+                self._coords[e].reshape(-1, 2, dim) if len(e) > 0 else np.empty((0, 2, dim))
+                for e in flat_edges
+            ]
+        # NOTE: here `mode` could also query the edges features. Not implemented yet.
+        else:
+            modes = ('indices', 'coords')
+            raise ValueError(f"Edge iteration mode not found. Received {mode}, expected {modes}.")
+        
+        if len(edges_data) == 1:
+            return edges_data[0]
+        else:
+            return edges_data

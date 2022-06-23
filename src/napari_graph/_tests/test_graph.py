@@ -178,6 +178,16 @@ class TestDirectedGraph(TestGraph):
             assert node not in self.graph.nodes()
             assert self.graph.n_nodes == original_size - i - 1
 
+    def test_edge_coordinates(self) -> None:
+        coords = self.nodes_df.values[self.edges]
+
+        source_edge_coords = np.concatenate(self.graph.source_edges(mode='coords'), axis=0)
+        assert np.allclose(coords, source_edge_coords)
+
+        target_edges_coords = np.concatenate(self.graph.target_edges(mode='coords'), axis=0)
+        rolled_coords = np.roll(coords, shift=1, axis=0)
+        assert np.allclose(rolled_coords, target_edges_coords)
+
 
 class TestUndirectedGraph(TestGraph):
     _GRAPH_CLASS = UndirectedGraph
@@ -215,6 +225,13 @@ class TestUndirectedGraph(TestGraph):
         
         self.assert_empty_linked_list_pairs_are_neighbors()
 
+    def test_edge_coordinates(self) -> None:
+        edge_coords = self.graph.edges(mode='coords')
+
+        for node, coords in zip(self.graph.nodes(), edge_coords):
+            for i, edge in enumerate(self.graph.edges(node)):
+                assert np.allclose(self.nodes_df.loc[edge, ["y", "x"]].values, coords[i])
+ 
     def assert_empty_linked_list_pairs_are_neighbors(self) -> None:
         # testing if empty edges linked list pairs are neighbors
         empty_idx = self.graph._empty_edge_idx
@@ -223,7 +240,7 @@ class TestUndirectedGraph(TestGraph):
             assert empty_idx + 1 == next_empty_idx
             # skipping one
             empty_idx = self.graph._edges_buffer[next_empty_idx * _UN_EDGE_SIZE + _LL_UN_EDGE_POS]
-        
+
 
 def test_benchmark_construction_speed() -> None:
     # FIXME: remove this, maybe create an airspeed velocity CI
