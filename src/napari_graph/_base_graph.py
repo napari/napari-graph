@@ -1,5 +1,5 @@
 
-from typing import Dict, List, Callable, Optional, Union
+from typing import Dict, List, Callable, Optional, Union, Tuple
 from numpy.typing import ArrayLike
 
 import numpy as np
@@ -517,3 +517,29 @@ class BaseGraph:
             return edges_data[0]
         else:
             return edges_data
+
+    def edges_buffers(self) -> Tuple[np.ndarray, np.ndarray]:
+        """Returns the indices (buffer domain) and the (source, target) (world domain) of the valid edges.
+           Undirected edges are not duplicated.
+
+           This function is useful for loading the data for visualization.
+
+        Returns
+        -------
+        Tuple[np.ndarray, np.ndarray]
+            Buffer indices (buffer domain) and (source, target) (world domain).
+        """
+        unique_edge_size = self._EDGE_SIZE * self._EDGE_DUPLICATION
+        buffer_size = len(self._edges_buffer)
+        indices = np.arange(0, buffer_size, unique_edge_size)
+
+        # reshaping such that each row is (source id, target id, ...)
+        buffer = self._edges_buffer.reshape((-1, unique_edge_size))
+        edges = buffer[:, :2]  # (source, target)
+
+        valid = edges[:, 0] != _EDGE_EMPTY_PTR
+
+        edges = self._buffer2world[edges[valid]]
+        indices = indices[valid]
+
+        return indices, edges

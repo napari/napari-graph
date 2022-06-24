@@ -89,7 +89,7 @@ def _remove_target_edge(
 ) -> None:
     """Removes edge from target edges linked list. It doesn't clean the buffer, because it'll be used later."""
 
-    idx = node2tgt_edges[tgt_node]  # different indexing from normal edge
+    idx = node2tgt_edges[tgt_node]  # different indexing from source edge
     prev_buffer_idx = _EDGE_EMPTY_PTR
 
     while idx != _EDGE_EMPTY_PTR:
@@ -97,12 +97,13 @@ def _remove_target_edge(
         next_edge_idx = edges_buffer[buffer_idx + _LL_DI_EDGE_POS + 1] 
 
         # edge found
-        if edges_buffer[buffer_idx] == src_node:   # different indexing from normal edge
+        if edges_buffer[buffer_idx] == src_node:   # different indexing from source edge
             # skipping found edge from linked list
             if prev_buffer_idx == _EDGE_EMPTY_PTR:
-                node2tgt_edges[src_node] = next_edge_idx
+                node2tgt_edges[tgt_node] = next_edge_idx  # different indexing from source edge
             else:
                 edges_buffer[prev_buffer_idx + _LL_DI_EDGE_POS + 1] = next_edge_idx
+
             edges_buffer[buffer_idx + _LL_DI_EDGE_POS + 1] = _EDGE_EMPTY_PTR
             return
 
@@ -176,6 +177,7 @@ def _remove_unidirectional_incident_edges(
         src_node = edges_buffer[buffer_idx]
         tgt_node = edges_buffer[buffer_idx + 1]
 
+        # must be removed before source edge, due to information cleanup
         _remove_target_edge(src_node, tgt_node, edges_buffer, node2tgt_edges)
         empty_idx = _remove_edge(
             src_node, tgt_node, empty_idx, edges_buffer, node2src_edges, _DI_EDGE_SIZE, _LL_DI_EDGE_POS,
@@ -200,11 +202,11 @@ def _remove_incident_directed_edges(
     # does it need to be jitted? why not
 
     empty_idx, n_edges = _remove_unidirectional_incident_edges(
-        node, empty_idx, n_edges, edges_buffer, node2src_edges, node2tgt_edges, is_target=0,
+        node, empty_idx, n_edges, edges_buffer, node2src_edges, node2tgt_edges, is_target=1,
     )
 
     empty_idx, n_edges = _remove_unidirectional_incident_edges(
-        node, empty_idx, n_edges, edges_buffer, node2src_edges, node2tgt_edges, is_target=1,
+        node, empty_idx, n_edges, edges_buffer, node2src_edges, node2tgt_edges, is_target=0,
     )
 
     return empty_idx, n_edges

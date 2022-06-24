@@ -107,6 +107,7 @@ def test_node_addition(n_prealloc_nodes: int) -> None:
 
 class TestGraph:
     _GRAPH_CLASS: Type[BaseGraph] = ...
+    __test__ = False  # ignored for testing
 
     def setup_method(self, method: Callable) -> None:
         self.nodes_df = pd.DataFrame(
@@ -141,10 +142,27 @@ class TestGraph:
 
     def teardown_method(self, method: Callable) -> None:
         self.edges, self.nodes_df, self.graph = None, None, None
+ 
+    def test_edge_buffers(self) -> None:
+        # testing non-trivial case when a node already removed
+        node_id = 3
+        self.graph.remove_node(node_id)
+
+        valid_edges = np.logical_not(np.any(self.edges == node_id, axis=1))
+
+        expected_edges = self.edges[valid_edges, :]
+        expected_indices, = np.nonzero(valid_edges)
+        expected_indices *= self.graph._EDGE_SIZE * self.graph._EDGE_DUPLICATION
+        
+        indices, edges = self.graph.edges_buffers()
+
+        assert np.allclose(expected_indices, indices)
+        assert np.allclose(expected_edges, edges)
 
 
 class TestDirectedGraph(TestGraph):
     _GRAPH_CLASS = DirectedGraph
+    __test__ = True
 
     def test_edge_removal(self) -> None:
         self.graph.remove_edges([0, 1])
@@ -191,6 +209,7 @@ class TestDirectedGraph(TestGraph):
 
 class TestUndirectedGraph(TestGraph):
     _GRAPH_CLASS = UndirectedGraph
+    __test__ = True
 
     def test_edge_removal(self) -> None:
         self.graph.remove_edges([0, 1])
@@ -231,7 +250,7 @@ class TestUndirectedGraph(TestGraph):
         for node, coords in zip(self.graph.nodes(), edge_coords):
             for i, edge in enumerate(self.graph.edges(node)):
                 assert np.allclose(self.nodes_df.loc[edge, ["y", "x"]].values, coords[i])
- 
+
     def assert_empty_linked_list_pairs_are_neighbors(self) -> None:
         # testing if empty edges linked list pairs are neighbors
         empty_idx = self.graph._empty_edge_idx
