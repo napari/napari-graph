@@ -22,7 +22,9 @@ def _remove_edge(
     ll_edge_pos: int,
 ) -> int:
     """Generic function to remove directed or undirected nodes.
-       An additional removal of the target edges linked list is necessary for directed edges.
+
+    An additional removal of the target edges linked list is necessary for
+    directed edges.
 
     Parameters
     ----------
@@ -35,11 +37,13 @@ def _remove_edge(
     edges_buffer : np.ndarray
         Buffer of edges data.
     node2edges : np.ndarray
-        Head of edges linked list, a mapping from node buffer indices to edge buffer indices.
+        Head of edges linked list, a mapping from node buffer indices to edge
+        buffer indices.
     edge_size : int
         Size of the edges on the buffer. It should be inlined when compiled.
     ll_edge_pos : int
-        Position (shift) of the edge linked list on the edge buffer. It should be inlined when compiled.
+        Position (shift) of the edge linked list on the edge buffer. It should
+        be inlined when compiled.
 
     Returns
     -------
@@ -93,12 +97,14 @@ def _iterate_edges(
     edge_size : int
         Size of the edges on the buffer. It should be inlined when compiled.
     ll_edge_pos : int
-        Position (shift) of the edge linked list on the edge buffer. It should be inlined when compiled.
+        Position (shift) of the edge linked list on the edge buffer. It should
+        be inlined when compiled.
 
     Returns
     -------
     typed.List
-        List of lists edges, adjacent nodes are at indices (k, k+1) such that k is even.
+        List of lists edges, adjacent nodes are at indices (k, k+1) such that k
+        is even.
     """
     edges_list = typed.List()
 
@@ -191,7 +197,9 @@ class BaseGraph:
         nodes_df: pd.DataFrame,
         coordinates_columns: List[str],
     ) -> None:
-        """Initializes graph nodes from data frame data. Graph nodes will be indexed by data frame indices.
+        """Initialize graph nodes from data frame data.
+
+        Graph nodes will be indexed by data frame indices.
 
         Parameters
         ----------
@@ -235,7 +243,8 @@ class BaseGraph:
 
         # NOTE:
         #  - feats and buffers arrays length may not match after this
-        #  - feats should be indexed by their pandas DataFrame index (world index)
+        #  - feats should be indexed by their pandas DataFrame index
+        #    (world index)
         self._feats = nodes_df.drop(coordinates_columns, axis=1)
 
     @property
@@ -260,7 +269,10 @@ class BaseGraph:
     def coordinates(
         self, node_indices: Optional[ArrayLike] = None
     ) -> np.ndarray:
-        """Coordinates of the given nodes, if none is provided it returns the coordinates of every node."""
+        """Coordinates of the given nodes.
+
+        If none is provided it returns the coordinates of every node.
+        """
         node_indices = self._validate_nodes(node_indices)
         node_indices = self._map_world2buffer(node_indices)
         return self._coords[node_indices]
@@ -428,7 +440,8 @@ class BaseGraph:
 
         if node_indices.ndim != 1:
             raise ValueError(
-                f"Node indices must be 1-dimensional. Found {node_indices.ndim}-dimensional."
+                "Node indices must be 1-dimensional. "
+                f"Found {node_indices.ndim}-dimensional."
             )
 
         return node_indices
@@ -442,18 +455,23 @@ class BaseGraph:
 
         if edges.ndim != 2:
             raise ValueError(
-                f"Edges must be 1- or 2-dimensional. Found {edges.ndim}-dimensional."
+                "Edges must be 1- or 2-dimensional. "
+                f"Found {edges.ndim}-dimensional."
             )
 
         if edges.shape[1] != 2:
             raise ValueError(
-                f"Edges must be a sequence of length 2 arrays. Found length {edges.shape[1]}"
+                f"Edges must be a sequence of length 2 arrays. "
+                f"Found length {edges.shape[1]}"
             )
 
         return edges
 
     def _add_edges(self, edges: np.ndarray) -> None:
-        """Abstract method, different implementation for undirected and directed graph."""
+        """Abstract method.
+
+        Requires different implementation for undirected and directed graphs.
+        """
         raise NotImplementedError
 
     def add_edges(self, edges: ArrayLike) -> None:
@@ -464,7 +482,8 @@ class BaseGraph:
         Parameters
         ----------
         edges : ArrayLike
-            A list of 2-dimensional tuples or an Nx2 array with a pair of nodes indices.
+            A list of 2-dimensional tuples or an Nx2 array with a pair of
+            node indices.
         """
         edges = self._validate_edges(edges)
 
@@ -482,17 +501,22 @@ class BaseGraph:
         Parameters
         ----------
         edges : ArrayLike
-            A list of 2-dimensional tuples or an Nx2 array with a pair of nodes indices.
+            A list of 2-dimensional tuples or an Nx2 array with a pair of
+            node indices.
         """
         edges = self._validate_edges(edges)
         edges = self._map_world2buffer(edges)
         self._remove_edges(edges)
 
-        # FIXME: this can lead to inconsistency in the count if removing edges raises an error
+        # FIXME: this can lead to inconsistency in the count if removing edges
+        # raises an error
         self._n_edges -= len(edges)
 
     def _map_world2buffer(self, world_idx: np.ndarray) -> np.ndarray:
-        """Flattens the world indices buffer maps it to buffer coordinates and reshape back to original space."""
+        """Flatten the world indices buffer maps into buffer coordinates.
+
+        ... and reshape back to original space.
+        """
         shape = world_idx.shape
         buffer_idx = _vmap_world2buffer(
             self._world2buffer, world_idx.reshape(-1)
@@ -507,7 +531,7 @@ class BaseGraph:
             [np.ndarray, np.ndarray], List[np.ndarray]
         ],
     ) -> List[List]:
-        """Helper function to iterate over any kind of edges and return their buffer indices.
+        """Helper function to iterate over edges and return buffer indices.
 
         Parameters
         ----------
@@ -515,13 +539,15 @@ class BaseGraph:
             Nodes world indices.
         node2edges : np.ndarray
             Mapping from nodes to edges (edges linked list heads).
-        iterate_edges_func : Callable[[np.ndarray, np.ndarray], List[np.ndarray]]
-            Function that iterates the edges from `edges_ptr_indices` and `edges_buffer`.
+        iterate_edges_func : [np.ndarray, np.ndarray] -> List[np.ndarray]
+            Function that iterates the edges from `edges_ptr_indices` and
+            `edges_buffer`.
 
         Returns
         -------
         List[List]
-            List of Lists of length 2 * N_i, where N_i is the number of edges at the ith node.
+            List of Lists of length 2 * N_i, where N_i is the number of edges
+            at the ith node.
         """
         node_world_indices = self._validate_nodes(node_world_indices)
 
@@ -548,17 +574,19 @@ class BaseGraph:
             Nodes world indices.
         node2edges : np.ndarray
             Mapping from nodes to edges (edges linked list heads).
-        iterate_edges_func : Callable[[np.ndarray, np.ndarray], List[np.ndarray]]
-            Function that iterates the edges from `edges_ptr_indices` and `edges_buffer`.
+        iterate_edges_func : [np.ndarray, np.ndarray] -> List[np.ndarray]
+            Function that iterates the edges from `edges_ptr_indices` and
+            `edges_buffer`.
         mode : str
-            Type of data queried from the edges. For example, `indices` or `coords`.
+            Type of data queried from the edges. For example, `indices` or
+            `coords`.
 
         Returns
         -------
         List[np.ndarray]
-            List of N_i x 2 x D arrays, where N_i is the number of edges at the ith node.
-            D is the dimensionality of `coords` when mode == `coords` and it's ignored
-            when mode == `indices`.
+            List of N_i x 2 x D arrays, where N_i is the number of edges at
+            the ith node.  D is the dimensionality of `coords` when
+            mode == `coords` and it's ignored when mode == `indices`.
         """
         flat_edges = self._iterate_edges(
             node_world_indices, node2edges, iterate_edges_func
@@ -579,11 +607,13 @@ class BaseGraph:
                 else np.empty((0, 2, dim))
                 for e in flat_edges
             ]
-        # NOTE: here `mode` could also query the edges features. Not implemented yet.
+        # NOTE: here `mode` could also query the edges features.
+        # Not implemented yet.
         else:
             modes = ('indices', 'coords')
             raise ValueError(
-                f"Edge iteration mode not found. Received {mode}, expected {modes}."
+                f"Edge iteration mode not found. Received {mode}, "
+                f"expected {modes}."
             )
 
         if len(edges_data) == 1:
@@ -592,10 +622,14 @@ class BaseGraph:
             return edges_data
 
     def edges_buffers(self) -> Tuple[np.ndarray, np.ndarray]:
-        """Returns the indices (buffer domain) and the (source, target) (world domain) of the valid edges.
-           Undirected edges are not duplicated.
+        """Return valid edges in buffer and world domains.
 
-           This function is useful for loading the data for visualization.
+        Return the indices (buffer domain) and the (source, target) values
+        (world domain) of all valid edges.
+
+        Undirected edges are not duplicated.
+
+        This function is useful for loading the data for visualization.
 
         Returns
         -------

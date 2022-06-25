@@ -28,9 +28,10 @@ def _add_directed_edge(
     src_node: int,
     tgt_node: int,
 ) -> int:
-    """
-    Adds a single directed edge to `buffer`, updating the `buffer`'s source and target linked list
-    nd the nodes to edges mappings.
+    """Add a single directed edge to `buffer`.
+
+    This updates the `buffer`'s source and target linked list
+    and the nodes to edges mappings.
 
     NOTE: see `_add_undirected_edge` docs for comment about cache misses.
 
@@ -70,8 +71,10 @@ def _add_directed_edges(
     node2src_edge: np.ndarray,
     node2tgt_edge: np.ndarray,
 ) -> Tuple[int, int]:
-    """Adds an array of edges into the `buffer`.
-    Directed edges contains two linked lists, outgoing (source) and incoming (target) edges.
+    """Add an array of edges into the `buffer`.
+
+    Directed edges contains two linked lists, outgoing (source) and incoming
+    (target) edges.
     """
     size = edges.shape[0]
     for i in range(size):
@@ -96,7 +99,10 @@ def _remove_target_edge(
     edges_buffer: np.ndarray,
     node2tgt_edges: np.ndarray,
 ) -> None:
-    """Removes edge from target edges linked list. It doesn't clean the buffer, because it'll be used later."""
+    """Remove edge from target edges linked list.
+
+    It doesn't clean the buffer, because it'll be used later.
+    """
 
     idx = node2tgt_edges[tgt_node]  # different indexing from source edge
     prev_buffer_idx = _EDGE_EMPTY_PTR
@@ -138,7 +144,7 @@ def _remove_directed_edge(
     node2src_edges: np.ndarray,
     node2tgt_edges: np.ndarray,
 ) -> int:
-    """Removes a single directed edge from the edges buffer."""
+    """Remove a single directed edge from the edges buffer."""
 
     # must be executed before default edge removal and cleanup
     _remove_target_edge(src_node, tgt_node, edges_buffer, node2tgt_edges)
@@ -164,7 +170,7 @@ def _remove_directed_edges(
     node2src_edges: np.ndarray,
     node2tgt_edges: np.ndarray,
 ) -> int:
-    """Removes an array of edges from the edges buffer."""
+    """Remove an array of edges from the edges buffer."""
 
     for i in range(edges.shape[0]):
         empty_idx = _remove_directed_edge(
@@ -188,8 +194,10 @@ def _remove_unidirectional_incident_edges(
     node2tgt_edges: np.ndarray,
     is_target: int,
 ) -> Tuple[int, int]:
-    """Removes directed edge from the buffer that contains the given `node` in one of the selected directions.
-    The parameter `is_target` should be zero to remove collisions with source nodes and 1 for target nodes.
+    """Remove directed edges from the buffer that contain the given `node`.
+
+    The parameter `is_target` should be zero to remove edges where `node` is
+    the source node, and 1 for the target node.
     """
     if is_target:
         idx = node2tgt_edges[node]
@@ -230,7 +238,7 @@ def _remove_incident_directed_edges(
     node2src_edges: np.ndarray,
     node2tgt_edges: np.ndarray,
 ) -> Tuple[int, int]:
-    """Remove directed edges that contains `node` in either direction."""
+    """Remove directed edges that contain `node` in either direction."""
     # does it need to be jitted? why not
 
     empty_idx, n_edges = _remove_unidirectional_incident_edges(
@@ -260,8 +268,7 @@ def _remove_incident_directed_edges(
 def _iterate_directed_source_edges(
     edge_ptr_indices: np.ndarray, edges_buffer: np.ndarray
 ) -> typed.List:
-
-    """Helper function to inline the edges size and linked list position shift."""
+    """Inline the edges size and linked list position shift."""
     return _iterate_edges(
         edge_ptr_indices, edges_buffer, _DI_EDGE_SIZE, _LL_DI_EDGE_POS
     )
@@ -271,7 +278,7 @@ def _iterate_directed_source_edges(
 def _iterate_directed_target_edges(
     edge_ptr_indices: np.ndarray, edges_buffer: np.ndarray
 ) -> typed.List:
-    """Helper function to inline the edges size and linked list position shift."""
+    """Inline the edges size and linked list position shift."""
     return _iterate_edges(
         edge_ptr_indices, edges_buffer, _DI_EDGE_SIZE, _LL_DI_EDGE_POS + 1
     )
@@ -305,7 +312,9 @@ class DirectedGraph(BaseGraph):
         nodes_df: pd.DataFrame,
         coordinates_columns: List[str],
     ) -> None:
-        """Initializes graph nodes from data frame data. Graph nodes will be indexed by data frame indices.
+        """Initialize graph nodes from dataframe.
+
+        Graph nodes will be indexed by dataframe indices.
 
         Parameters
         ----------
@@ -344,21 +353,25 @@ class DirectedGraph(BaseGraph):
     def source_edges(
         self, nodes: Optional[ArrayLike] = None, mode: str = 'indices'
     ) -> Union[List[np.ndarray], np.ndarray]:
-        """Returns the source edges (outgoing) of the given nodes, if none is provided all source edges are returned.
+        """Return the source edges (outgoing) of the given nodes.
+
+        If no nodes are provided, all source edges are returned.
 
         Parameters
         ----------
         nodes : Optional[ArrayLike], optional
             Node indices, by default None
         mode : str
-            Type of data queried from the edges. For example, `indices` or `coords`.
+            Type of data queried from the edges. For example, `indices` or
+            `coords`.
 
         Returns
         -------
         List[np.ndarray]
-            List of (N_i) x 2 x D arrays, where N_i is the number of edges at the ith node.
-            D is the dimensionality of `coords` when mode == `coords` and it's ignored
-            when mode == `indices`. N_i dimension is ignored when N_i is 1.
+            List of (N_i) x 2 x D arrays, where N_i is the number of edges at
+            the ith node.  D is the dimensionality of `coords` when
+            mode == `coords` and is ignored when mode == `indices`. N_i
+            dimension is ignored when N_i is 1.
         """
         return self._iterate_edges_generic(
             nodes,
@@ -370,21 +383,25 @@ class DirectedGraph(BaseGraph):
     def target_edges(
         self, nodes: Optional[ArrayLike] = None, mode: str = 'indices'
     ) -> Union[List[np.ndarray], np.ndarray]:
-        """Returns the target edges (incoming) of the given nodes, if none is provided all target edges are returned.
+        """Return the target edges (incoming) of the given nodes.
+
+        If no nodes are provided, all target edges are returned.
 
         Parameters
         ----------
         nodes : Optional[ArrayLike], optional
             Node indices, by default None
         mode : str
-            Type of data queried from the edges. For example, `indices` or `coords`.
+            Type of data queried from the edges. For example, `indices` or
+            `coords`.
 
         Returns
         -------
         List[np.ndarray]
-            List of (N_i) x 2 x D arrays, where N_i is the number of edges at the ith node.
-            D is the dimensionality of `coords` when mode == `coords` and it's ignored
-            when mode == `indices`. N_i dimension is ignored when N_i is 1.
+            List of (N_i) x 2 x D arrays, where N_i is the number of edges at
+            the ith node.  D is the dimensionality of `coords` when
+            mode == `coords` and it's ignored when mode == `indices`. N_i
+            dimension is ignored when N_i is 1.
         """
         return self._iterate_edges_generic(
             nodes,

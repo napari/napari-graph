@@ -26,13 +26,15 @@ def _add_undirected_edge(
     src_node: int,
     tgt_node: int,
 ) -> int:
-    """
-    Adds a single edge (`src_idx`, `tgt_idx`) to `buffer`, updating the edge linked list (present in the buffer)
-    and the `node2edges` mapping (head of linked list).
+    """Add a single edge (`src_idx`, `tgt_idx`) to `buffer`.
 
-    NOTE: Edges are added at the beginning of the linked list so we don't have to track its
-          tail and the operation can be done in O(1). This might decrease cash hits because
-          they're sorted in memory in the opposite direction we iterate it.
+    Update the edge linked list (present in the buffer) and the `node2edges`
+    mapping (head of linked list).
+
+    NOTE: Edges are added at the beginning of the linked list so we don't have
+    to track its tail and the operation can be done in O(1). This might
+    decrease cache hits because they're sorted in memory in the opposite
+    direction we iterate it.
 
     Returns
     -------
@@ -67,8 +69,10 @@ def _add_undirected_edges(
     n_edges: int,
     node2edge: np.ndarray,
 ) -> Tuple[int, int]:
-    """Adds an array of edges into the `buffer`.
-    Edges are duplicated so both directions are available for fast graph transversal.
+    """Add an array of edges into the `buffer`.
+
+    Edges are duplicated so both directions are available for fast graph
+    transversal.
     """
     size = edges.shape[0]
     for i in range(size):
@@ -95,7 +99,8 @@ def _remove_undirected_edge(
     edges_buffer: np.ndarray,
     node2edges: np.ndarray,
 ) -> int:
-    """Removes a single edge (and its duplicated sibling edge) from the buffer.
+    """Remove a single edge (and its duplicated sibling edge) from the buffer.
+
     NOTE: Edges are removed such that empty pairs are consecutive in memory.
     """
     empty_idx = _remove_edge(
@@ -128,7 +133,7 @@ def _remove_undirected_edges(
     edges_buffer: np.ndarray,
     node2edges: np.ndarray,
 ) -> int:
-    """Removes an array of edges (and their duplicated siblings edges) from the buffer."""
+    """Remove an array of edges (and their duplicated siblings) from buffer."""
 
     for i in range(edges.shape[0]):
         empty_idx = _remove_undirected_edge(
@@ -146,11 +151,13 @@ def _remove_incident_undirected_edges(
     node2edges: np.ndarray,
 ) -> Tuple[int, int]:
     """Removes every edges that contains `node_idx`.
+
     NOTE: Edges are removed such that empty pairs are consecutive in memory.
     """
 
     # the edges are removed such that the empty edges linked list contains
-    # two positions adjacent in memory so we can serialize the edges using numpy vectorization
+    # two positions adjacent in memory so we can serialize the edges using
+    # numpy vectorization
     idx = node2edges[node]
 
     while idx != _EDGE_EMPTY_PTR:
@@ -201,7 +208,7 @@ def _remove_incident_undirected_edges(
 def _iterate_undirected_edges(
     edge_ptr_indices: np.ndarray, edges_buffer: np.ndarray
 ) -> typed.List:
-    """Helper function to inline the edges size and linked list position shift."""
+    """Inline the edges size and linked list position shift."""
     return _iterate_edges(
         edge_ptr_indices, edges_buffer, _UN_EDGE_SIZE, _LL_UN_EDGE_POS
     )
@@ -236,23 +243,29 @@ class UndirectedGraph(BaseGraph):
     def edges(
         self, nodes: Optional[ArrayLike] = None, mode: str = 'indices'
     ) -> Union[List[np.ndarray], np.ndarray]:
-        """Returns the edges data of the given nodes, if none is provided all edges are returned.
-           NOTE: when `nodes` is None the returned edges are duplicated, such that,
-                 if (u, v) was inserted this function will return both (u, v) and (v, u).
+        """Return the edges data of the given nodes.
+
+        If no nodes are provided, all edges are returned.
+
+        NOTE: when `nodes` is None, the returned edges are duplicated, so that
+        if (u, v) was inserted this function will return both (u, v) and
+        (v, u).
 
         Parameters
         ----------
         nodes : Optional[ArrayLike], optional
             Node indices, by default None
         mode : str
-            Type of data queried from the edges. For example, `indices` or `coords`.
+            Type of data queried from the edges. For example, `indices` or
+            `coords`.
 
         Returns
         -------
         List[np.ndarray]
-            List of (N_i) x 2 x D arrays, where N_i is the number of edges at the ith node.
-            D is the dimensionality of `coords` when mode == `coords` and it's ignored
-            when mode == `indices`. N_i dimension is ignored when N_i is 1.
+            List of (N_i) x 2 x D arrays, where N_i is the number of edges at
+            the ith node.  D is the dimensionality of `coords` when mode ==
+            `coords` and it's ignored when mode == `indices`. N_i dimension is
+            ignored when N_i is 1.
         """
         return self._iterate_edges_generic(
             nodes,
