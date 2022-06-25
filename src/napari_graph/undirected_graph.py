@@ -1,4 +1,3 @@
-
 from typing import List, Tuple, Optional, Union
 from numpy.typing import ArrayLike
 
@@ -6,7 +5,12 @@ import numpy as np
 
 from numba import njit, typed
 
-from napari_graph._base_graph import BaseGraph, _iterate_edges, _EDGE_EMPTY_PTR, _remove_edge
+from napari_graph._base_graph import (
+    BaseGraph,
+    _iterate_edges,
+    _EDGE_EMPTY_PTR,
+    _remove_edge,
+)
 
 
 # undirected edge constants
@@ -15,7 +19,13 @@ _LL_UN_EDGE_POS = 2
 
 
 @njit
-def _add_undirected_edge(buffer: np.ndarray, node2edge: np.ndarray, empty_idx: int, src_node: int, tgt_node: int) -> int:
+def _add_undirected_edge(
+    buffer: np.ndarray,
+    node2edge: np.ndarray,
+    empty_idx: int,
+    src_node: int,
+    tgt_node: int,
+) -> int:
     """
     Adds a single edge (`src_idx`, `tgt_idx`) to `buffer`, updating the edge linked list (present in the buffer)
     and the `node2edges` mapping (head of linked list).
@@ -35,7 +45,7 @@ def _add_undirected_edge(buffer: np.ndarray, node2edge: np.ndarray, empty_idx: i
 
     elif empty_idx < 0:
         raise ValueError("Invalid empty index.")
-    
+
     next_edge = node2edge[src_node]
     node2edge[src_node] = empty_idx
 
@@ -55,18 +65,22 @@ def _add_undirected_edges(
     edges: np.ndarray,
     empty_idx: int,
     n_edges: int,
-    node2edge: np.ndarray
+    node2edge: np.ndarray,
 ) -> Tuple[int, int]:
     """Adds an array of edges into the `buffer`.
-       Edges are duplicated so both directions are available for fast graph transversal.
+    Edges are duplicated so both directions are available for fast graph transversal.
     """
     size = edges.shape[0]
     for i in range(size):
 
         # adding (u, v)
-        empty_idx = _add_undirected_edge(buffer, node2edge, empty_idx, edges[i, 0], edges[i, 1])
+        empty_idx = _add_undirected_edge(
+            buffer, node2edge, empty_idx, edges[i, 0], edges[i, 1]
+        )
         # adding (v, u)
-        empty_idx = _add_undirected_edge(buffer, node2edge, empty_idx, edges[i, 1], edges[i, 0])
+        empty_idx = _add_undirected_edge(
+            buffer, node2edge, empty_idx, edges[i, 1], edges[i, 0]
+        )
 
         n_edges += 1
 
@@ -82,14 +96,26 @@ def _remove_undirected_edge(
     node2edges: np.ndarray,
 ) -> int:
     """Removes a single edge (and its duplicated sibling edge) from the buffer.
-       NOTE: Edges are removed such that empty pairs are consecutive in memory.
+    NOTE: Edges are removed such that empty pairs are consecutive in memory.
     """
     empty_idx = _remove_edge(
-        tgt_node, src_node, empty_idx, edges_buffer, node2edges, _UN_EDGE_SIZE, _LL_UN_EDGE_POS,
+        tgt_node,
+        src_node,
+        empty_idx,
+        edges_buffer,
+        node2edges,
+        _UN_EDGE_SIZE,
+        _LL_UN_EDGE_POS,
     )
 
     empty_idx = _remove_edge(
-        src_node, tgt_node, empty_idx, edges_buffer, node2edges, _UN_EDGE_SIZE, _LL_UN_EDGE_POS,
+        src_node,
+        tgt_node,
+        empty_idx,
+        edges_buffer,
+        node2edges,
+        _UN_EDGE_SIZE,
+        _LL_UN_EDGE_POS,
     )
 
     return empty_idx
@@ -120,7 +146,7 @@ def _remove_incident_undirected_edges(
     node2edges: np.ndarray,
 ) -> Tuple[int, int]:
     """Removes every edges that contains `node_idx`.
-       NOTE: Edges are removed such that empty pairs are consecutive in memory.
+    NOTE: Edges are removed such that empty pairs are consecutive in memory.
     """
 
     # the edges are removed such that the empty edges linked list contains
@@ -131,9 +157,13 @@ def _remove_incident_undirected_edges(
         buffer_idx = idx * _UN_EDGE_SIZE
         next_idx = edges_buffer[buffer_idx + _LL_UN_EDGE_POS]
         # checking if sibling edges is before or after current node
-        if (buffer_idx > 0 and
-            edges_buffer[buffer_idx - _UN_EDGE_SIZE + 1] == edges_buffer[buffer_idx] and
-            edges_buffer[buffer_idx - _UN_EDGE_SIZE] == edges_buffer[buffer_idx + 1]):
+        if (
+            buffer_idx > 0
+            and edges_buffer[buffer_idx - _UN_EDGE_SIZE + 1]
+            == edges_buffer[buffer_idx]
+            and edges_buffer[buffer_idx - _UN_EDGE_SIZE]
+            == edges_buffer[buffer_idx + 1]
+        ):
 
             src_node = edges_buffer[buffer_idx + 1]
             tgt_node = edges_buffer[buffer_idx]
@@ -142,11 +172,23 @@ def _remove_incident_undirected_edges(
             tgt_node = edges_buffer[buffer_idx + 1]
 
         empty_idx = _remove_edge(
-            tgt_node, src_node, empty_idx, edges_buffer, node2edges, _UN_EDGE_SIZE, _LL_UN_EDGE_POS
+            tgt_node,
+            src_node,
+            empty_idx,
+            edges_buffer,
+            node2edges,
+            _UN_EDGE_SIZE,
+            _LL_UN_EDGE_POS,
         )
 
         empty_idx = _remove_edge(
-            src_node, tgt_node, empty_idx, edges_buffer, node2edges, _UN_EDGE_SIZE, _LL_UN_EDGE_POS
+            src_node,
+            tgt_node,
+            empty_idx,
+            edges_buffer,
+            node2edges,
+            _UN_EDGE_SIZE,
+            _LL_UN_EDGE_POS,
         )
 
         idx = next_idx
@@ -156,9 +198,13 @@ def _remove_incident_undirected_edges(
 
 
 @njit
-def _iterate_undirected_edges(edge_ptr_indices: np.ndarray, edges_buffer: np.ndarray) -> typed.List:
+def _iterate_undirected_edges(
+    edge_ptr_indices: np.ndarray, edges_buffer: np.ndarray
+) -> typed.List:
     """Helper function to inline the edges size and linked list position shift."""
-    return _iterate_edges(edge_ptr_indices, edges_buffer, _UN_EDGE_SIZE, _LL_UN_EDGE_POS)
+    return _iterate_edges(
+        edge_ptr_indices, edges_buffer, _UN_EDGE_SIZE, _LL_UN_EDGE_POS
+    )
 
 
 class UndirectedGraph(BaseGraph):
@@ -187,9 +233,11 @@ class UndirectedGraph(BaseGraph):
             self._node2edges,
         )
 
-    def edges(self, nodes: Optional[ArrayLike] = None, mode: str = 'indices') -> Union[List[np.ndarray], np.ndarray]:
+    def edges(
+        self, nodes: Optional[ArrayLike] = None, mode: str = 'indices'
+    ) -> Union[List[np.ndarray], np.ndarray]:
         """Returns the edges data of the given nodes, if none is provided all edges are returned.
-           NOTE: when `nodes` is None the returned edges are duplicated, such that, 
+           NOTE: when `nodes` is None the returned edges are duplicated, such that,
                  if (u, v) was inserted this function will return both (u, v) and (v, u).
 
         Parameters
@@ -212,13 +260,20 @@ class UndirectedGraph(BaseGraph):
             iterate_edges_func=_iterate_undirected_edges,
             mode=mode,
         )
-    
+
     def _remove_edges(self, edges: np.ndarray) -> None:
         self._empty_edge_idx = _remove_undirected_edges(
             edges, self._empty_edge_idx, self._edges_buffer, self._node2edges
         )
 
     def _remove_node_edges(self, node_buffer_index: int) -> None:
-        self._empty_edge_idx, self._n_edges = _remove_incident_undirected_edges(
-            node_buffer_index, self._empty_edge_idx, self._n_edges, self._edges_buffer, self._node2edges
+        (
+            self._empty_edge_idx,
+            self._n_edges,
+        ) = _remove_incident_undirected_edges(
+            node_buffer_index,
+            self._empty_edge_idx,
+            self._n_edges,
+            self._edges_buffer,
+            self._node2edges,
         )

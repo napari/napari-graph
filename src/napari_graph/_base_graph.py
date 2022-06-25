@@ -1,4 +1,3 @@
-
 from typing import Dict, List, Callable, Optional, Union, Tuple
 from numpy.typing import ArrayLike
 
@@ -53,7 +52,7 @@ def _remove_edge(
 
     while idx != _EDGE_EMPTY_PTR:
         buffer_idx = idx * edge_size
-        next_edge_idx = edges_buffer[buffer_idx + ll_edge_pos] 
+        next_edge_idx = edges_buffer[buffer_idx + ll_edge_pos]
 
         # edge found
         if edges_buffer[buffer_idx + 1] == tgt_node:
@@ -64,14 +63,14 @@ def _remove_edge(
                 edges_buffer[prev_buffer_idx + ll_edge_pos] = next_edge_idx
 
             # clean up not necessary but good practice
-            edges_buffer[buffer_idx:buffer_idx + edge_size] = _EDGE_EMPTY_PTR
+            edges_buffer[buffer_idx : buffer_idx + edge_size] = _EDGE_EMPTY_PTR
 
             edges_buffer[buffer_idx + ll_edge_pos] = empty_idx
             return idx
         # moving to next edge
         idx = next_edge_idx
         prev_buffer_idx = buffer_idx
-    
+
     raise ValueError("Found an invalid edge at edge removal")
 
 
@@ -109,10 +108,10 @@ def _iterate_edges(
 
         while idx != _EDGE_EMPTY_PTR:
             buffer_idx = idx * edge_size
-            edges.append(edges_buffer[buffer_idx])      # src
+            edges.append(edges_buffer[buffer_idx])  # src
             edges.append(edges_buffer[buffer_idx + 1])  # tgt
             idx = edges_buffer[buffer_idx + ll_edge_pos]
-    
+
     return edges_list
 
 
@@ -123,12 +122,14 @@ def _create_world2buffer_map(world_idx: np.ndarray) -> typed.Dict:
 
     for i in range(world_idx.shape[0]):
         world2buffer[world_idx[i]] = i
-    
+
     return world2buffer
 
 
 @njit(parallel=True)  # TODO: benchmark if parallel is worth it
-def _vmap_world2buffer(world2buffer: typed.Dict, world_idx: np.ndarray) -> typed.Dict:
+def _vmap_world2buffer(
+    world2buffer: typed.Dict, world_idx: np.ndarray
+) -> typed.Dict:
     """Maps world indices to buffer indices."""
     buffer_idx = np.empty(world_idx.shape[0], dtype=types.int64)
     for i in prange(world_idx.shape[0]):
@@ -148,6 +149,7 @@ class BaseGraph:
     n_edges : int
         Number of edges of the graph.
     """
+
     _NODE_EMPTY_PTR = -1
 
     # abstract constants
@@ -164,16 +166,26 @@ class BaseGraph:
         self._coords = np.zeros((n_nodes, ndim), dtype=np.float32)
         self._feats = pd.DataFrame()
         self._empty_nodes: List[int] = list(reversed(range(n_nodes)))
-        self._node2edges = np.full(n_nodes, fill_value=_EDGE_EMPTY_PTR, dtype=int)
+        self._node2edges = np.full(
+            n_nodes, fill_value=_EDGE_EMPTY_PTR, dtype=int
+        )
         self._world2buffer = typed.Dict.empty(types.int64, types.int64)
-        self._buffer2world = np.full(n_nodes, fill_value=self._NODE_EMPTY_PTR, dtype=int)
- 
+        self._buffer2world = np.full(
+            n_nodes, fill_value=self._NODE_EMPTY_PTR, dtype=int
+        )
+
         # edge-wise buffers
         self._empty_edge_idx = 0 if n_edges > 0 else _EDGE_EMPTY_PTR
         self._n_edges = 0
-        self._edges_buffer = np.full(n_edges * self._EDGE_DUPLICATION * self._EDGE_SIZE, fill_value=_EDGE_EMPTY_PTR, dtype=int)
-        self._edges_buffer[self._LL_EDGE_POS : -self._EDGE_SIZE :self._EDGE_SIZE] = np.arange(1, self._EDGE_DUPLICATION * n_edges)
-   
+        self._edges_buffer = np.full(
+            n_edges * self._EDGE_DUPLICATION * self._EDGE_SIZE,
+            fill_value=_EDGE_EMPTY_PTR,
+            dtype=int,
+        )
+        self._edges_buffer[
+            self._LL_EDGE_POS : -self._EDGE_SIZE : self._EDGE_SIZE
+        ] = np.arange(1, self._EDGE_DUPLICATION * n_edges)
+
     def init_nodes_from_dataframe(
         self,
         nodes_df: pd.DataFrame,
@@ -189,22 +201,37 @@ class BaseGraph:
             Names of coordinate columns.
         """
         if nodes_df.index.dtype != np.int64:
-            raise ValueError(f"Nodes indices must be int64. Found {nodes_df.index.dtype}.")
- 
+            raise ValueError(
+                f"Nodes indices must be int64. Found {nodes_df.index.dtype}."
+            )
+
         n_nodes = len(nodes_df)
 
-        if  n_nodes > self._coords.shape[0] or len(coordinates_columns) != self._coords.shape[1]:
-            self._coords = nodes_df[coordinates_columns].values.astype(np.float32, copy=True)
-            self._node2edges = np.full(n_nodes, fill_value=_EDGE_EMPTY_PTR, dtype=int)
-            self._buffer2world = nodes_df.index.values.astype(np.uint64, copy=True)
+        if (
+            n_nodes > self._coords.shape[0]
+            or len(coordinates_columns) != self._coords.shape[1]
+        ):
+            self._coords = nodes_df[coordinates_columns].values.astype(
+                np.float32, copy=True
+            )
+            self._node2edges = np.full(
+                n_nodes, fill_value=_EDGE_EMPTY_PTR, dtype=int
+            )
+            self._buffer2world = nodes_df.index.values.astype(
+                np.uint64, copy=True
+            )
             self._empty_nodes = []
         else:
             self._coords[:n_nodes] = nodes_df[coordinates_columns].values
             self._node2edges.fill(_EDGE_EMPTY_PTR)
             self._buffer2world[:n_nodes] = nodes_df.index.values
-            self._empty_nodes = list(reversed(range(n_nodes, len(self._buffer2world))))  # reversed so we add nodes to the end of it
+            self._empty_nodes = list(
+                reversed(range(n_nodes, len(self._buffer2world)))
+            )  # reversed so we add nodes to the end of it
 
-        self._world2buffer = _create_world2buffer_map(self._buffer2world[:n_nodes])
+        self._world2buffer = _create_world2buffer_map(
+            self._buffer2world[:n_nodes]
+        )
 
         # NOTE:
         #  - feats and buffers arrays length may not match after this
@@ -220,19 +247,20 @@ class BaseGraph:
     def n_empty_nodes(self) -> int:
         """Number of nodes allocated but not used."""
         return len(self._empty_nodes)
-    
+
     @property
     def n_nodes(self) -> int:
         """Number of nodes in use."""
         return self.n_allocated_nodes - self.n_empty_nodes
-    
+
     def nodes(self) -> np.ndarray:
         """Indices of graph nodes."""
         return self._buffer2world[self._buffer2world != self._NODE_EMPTY_PTR]
-    
-    def coordinates(self, node_indices: Optional[ArrayLike] = None) -> np.ndarray:
-        """Coordinates of the given nodes, if none is provided it returns the coordinates of every node.
-        """
+
+    def coordinates(
+        self, node_indices: Optional[ArrayLike] = None
+    ) -> np.ndarray:
+        """Coordinates of the given nodes, if none is provided it returns the coordinates of every node."""
         node_indices = self._validate_nodes(node_indices)
         node_indices = self._map_world2buffer(node_indices)
         return self._coords[node_indices]
@@ -251,25 +279,29 @@ class BaseGraph:
         size_diff = size - prev_size
 
         if size_diff < 0:
-            raise NotImplementedError("Node buffers size decrease not implemented.")
+            raise NotImplementedError(
+                "Node buffers size decrease not implemented."
+            )
 
         elif size_diff == 0:
             raise ValueError("Tried to realloc to current buffer size.")
 
-        self._coords.resize((size, self._coords.shape[1])) # zero-filled
+        self._coords.resize((size, self._coords.shape[1]))  # zero-filled
         self._node2edges = np.append(
             self._node2edges,
             np.full(size_diff, fill_value=_EDGE_EMPTY_PTR, dtype=int),
         )
         self._buffer2world = np.append(
             self._buffer2world,
-            np.full(size_diff, fill_value=self._NODE_EMPTY_PTR, dtype=int)
+            np.full(size_diff, fill_value=self._NODE_EMPTY_PTR, dtype=int),
         )
         self._empty_nodes = list(reversed(range(prev_size, size)))
 
         # FIXME: self._feats --- how should it be pre-allocated?
 
-    def add_node(self, index: int, coords: np.ndarray, features: Dict = {}) -> None:
+    def add_node(
+        self, index: int, coords: np.ndarray, features: Dict = {}
+    ) -> None:
         """Adds node to graph.
 
         Parameters
@@ -281,12 +313,15 @@ class BaseGraph:
         features : Dict, optional
             Node features, by default {}
         """
-        
+
         if self.n_empty_nodes == 0:
             self._realloc_nodes_buffers(
-                max(self.n_allocated_nodes * self._ALLOC_MULTIPLIER, self._ALLOC_MIN)
+                max(
+                    self.n_allocated_nodes * self._ALLOC_MULTIPLIER,
+                    self._ALLOC_MIN,
+                )
             )
-        
+
         buffer_index = self._empty_nodes.pop()
         self._coords[buffer_index, :] = coords
         self._world2buffer[index] = buffer_index
@@ -295,7 +330,9 @@ class BaseGraph:
         if len(features) > 0:
             features = pd.DataFrame([features], index=[index])
         else:
-            features = pd.DataFrame(np.NaN, index=[index], columns=self._feats.keys())
+            features = pd.DataFrame(
+                np.NaN, index=[index], columns=self._feats.keys()
+            )
 
         self._feats = pd.concat((self._feats, features))
 
@@ -327,7 +364,9 @@ class BaseGraph:
         diff_size = size - prev_size
 
         if diff_size < 0:
-            raise NotImplementedError("Edge buffer size decrease not implemented.")
+            raise NotImplementedError(
+                "Edge buffer size decrease not implemented."
+            )
         elif diff_size == 0:
             raise ValueError("Tried to realloc to current buffer size.")
 
@@ -335,47 +374,63 @@ class BaseGraph:
 
         self._edges_buffer = np.append(
             self._edges_buffer,
-            np.full(diff_size * self._EDGE_SIZE, fill_value=_EDGE_EMPTY_PTR, dtype=int)
+            np.full(
+                diff_size * self._EDGE_SIZE,
+                fill_value=_EDGE_EMPTY_PTR,
+                dtype=int,
+            ),
         )
 
         # fills empty edges ptr
-        self._edges_buffer[prev_buffer_size + self._LL_EDGE_POS : -self._EDGE_SIZE :self._EDGE_SIZE] =\
-             np.arange(prev_size + 1, size) 
+        self._edges_buffer[
+            prev_buffer_size
+            + self._LL_EDGE_POS : -self._EDGE_SIZE : self._EDGE_SIZE
+        ] = np.arange(prev_size + 1, size)
 
         # appends existing empty edges linked list to the end of the new list
-        self._edges_buffer[self._LL_EDGE_POS - self._EDGE_SIZE] = self._empty_edge_idx
+        self._edges_buffer[
+            self._LL_EDGE_POS - self._EDGE_SIZE
+        ] = self._empty_edge_idx
         self._empty_edge_idx = prev_size
 
     @property
     def n_allocated_edges(self) -> int:
         """Number of total allocated edges."""
-        return len(self._edges_buffer) // (self._EDGE_DUPLICATION * self._EDGE_SIZE)
+        return len(self._edges_buffer) // (
+            self._EDGE_DUPLICATION * self._EDGE_SIZE
+        )
 
     @property
     def n_empty_edges(self) -> int:
         """Number of allocated edges but not used."""
         return self.n_allocated_edges - self.n_edges
-    
+
     @property
     def n_edges(self) -> int:
         """Number of edges in use."""
         return self._n_edges
 
-    def _validate_nodes(self, node_indices: Optional[ArrayLike] = None) -> np.ndarray:
+    def _validate_nodes(
+        self, node_indices: Optional[ArrayLike] = None
+    ) -> np.ndarray:
         """Converts and validates the nodes indices."""
 
         # NOTE: maybe the nodes could be mappend inside this function
         if node_indices is None:
             return self.nodes()
-        
+
         node_indices = np.atleast_1d(node_indices)
 
         if not np.issubdtype(node_indices.dtype, np.integer):
-            raise ValueError(f"Node indices must be integer. Found {node_indices.dtype}.")
- 
+            raise ValueError(
+                f"Node indices must be integer. Found {node_indices.dtype}."
+            )
+
         if node_indices.ndim != 1:
-            raise ValueError(f"Node indices must be 1-dimensional. Found {node_indices.ndim}-dimensional.")
-        
+            raise ValueError(
+                f"Node indices must be 1-dimensional. Found {node_indices.ndim}-dimensional."
+            )
+
         return node_indices
 
     def _validate_edges(self, edges: ArrayLike) -> np.ndarray:
@@ -386,13 +441,17 @@ class BaseGraph:
             raise ValueError(f"Edges must be integer. Found {edges.dtype}.")
 
         if edges.ndim != 2:
-            raise ValueError(f"Edges must be 1- or 2-dimensional. Found {edges.ndim}-dimensional.")
-        
+            raise ValueError(
+                f"Edges must be 1- or 2-dimensional. Found {edges.ndim}-dimensional."
+            )
+
         if edges.shape[1] != 2:
-            raise ValueError(f"Edges must be a sequence of length 2 arrays. Found length {edges.shape[1]}")
+            raise ValueError(
+                f"Edges must be a sequence of length 2 arrays. Found length {edges.shape[1]}"
+            )
 
         return edges
-    
+
     def _add_edges(self, edges: np.ndarray) -> None:
         """Abstract method, different implementation for undirected and directed graph."""
         raise NotImplementedError
@@ -413,10 +472,10 @@ class BaseGraph:
             self._realloc_edges_buffers(len(edges))
 
         self._add_edges(edges)
-    
+
     def _remove_edges(self, edges: np.ndarray) -> None:
         raise NotImplementedError
-    
+
     def remove_edges(self, edges: ArrayLike) -> None:
         """Remove edges from the graph.
 
@@ -431,18 +490,22 @@ class BaseGraph:
 
         # FIXME: this can lead to inconsistency in the count if removing edges raises an error
         self._n_edges -= len(edges)
- 
+
     def _map_world2buffer(self, world_idx: np.ndarray) -> np.ndarray:
         """Flattens the world indices buffer maps it to buffer coordinates and reshape back to original space."""
         shape = world_idx.shape
-        buffer_idx = _vmap_world2buffer(self._world2buffer, world_idx.reshape(-1))
+        buffer_idx = _vmap_world2buffer(
+            self._world2buffer, world_idx.reshape(-1)
+        )
         return buffer_idx.reshape(shape)
 
     def _iterate_edges(
         self,
         node_world_indices: ArrayLike,
         node2edges: np.ndarray,
-        iterate_edges_func: Callable[[np.ndarray, np.ndarray], List[np.ndarray]],
+        iterate_edges_func: Callable[
+            [np.ndarray, np.ndarray], List[np.ndarray]
+        ],
     ) -> List[List]:
         """Helper function to iterate over any kind of edges and return their buffer indices.
 
@@ -472,7 +535,9 @@ class BaseGraph:
         self,
         node_world_indices: ArrayLike,
         node2edges: np.ndarray,
-        iterate_edges_func: Callable[[np.ndarray, np.ndarray], List[np.ndarray]],
+        iterate_edges_func: Callable[
+            [np.ndarray, np.ndarray], List[np.ndarray]
+        ],
         mode: str,
     ) -> Union[List[np.ndarray], np.ndarray]:
         """Iterate over any kind of edges and return their world indices.
@@ -493,26 +558,34 @@ class BaseGraph:
         List[np.ndarray]
             List of N_i x 2 x D arrays, where N_i is the number of edges at the ith node.
             D is the dimensionality of `coords` when mode == `coords` and it's ignored
-            when mode == `indices`. 
+            when mode == `indices`.
         """
-        flat_edges = self._iterate_edges(node_world_indices, node2edges, iterate_edges_func)
+        flat_edges = self._iterate_edges(
+            node_world_indices, node2edges, iterate_edges_func
+        )
 
         if mode.lower() == 'indices':
             edges_data = [
-                self._buffer2world[e].reshape(-1, 2) if len(e) > 0 else np.empty((0, 2))
+                self._buffer2world[e].reshape(-1, 2)
+                if len(e) > 0
+                else np.empty((0, 2))
                 for e in flat_edges
             ]
         elif mode.lower() == 'coords':
             dim = self._coords.shape[1]
             edges_data = [
-                self._coords[e].reshape(-1, 2, dim) if len(e) > 0 else np.empty((0, 2, dim))
+                self._coords[e].reshape(-1, 2, dim)
+                if len(e) > 0
+                else np.empty((0, 2, dim))
                 for e in flat_edges
             ]
         # NOTE: here `mode` could also query the edges features. Not implemented yet.
         else:
             modes = ('indices', 'coords')
-            raise ValueError(f"Edge iteration mode not found. Received {mode}, expected {modes}.")
-        
+            raise ValueError(
+                f"Edge iteration mode not found. Received {mode}, expected {modes}."
+            )
+
         if len(edges_data) == 1:
             return edges_data[0]
         else:
