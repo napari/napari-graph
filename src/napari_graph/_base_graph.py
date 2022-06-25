@@ -86,7 +86,8 @@ def _iterate_edges(
     ll_edge_pos: int,
 ) -> typed.List:
     """Iterate over the edges linked lists given their starting edges.
-       It returns list of multiplicity 2, where each pair is an edge.
+
+    It returns list of multiplicity 2, where each pair is an edge.
 
     Parameters
     ----------
