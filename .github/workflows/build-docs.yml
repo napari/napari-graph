@@ -8,7 +8,7 @@ on:
     branches:
       - docs
   workflow_dispatch:
-  
+
 jobs:
 
   build-and-upload-artifact:
@@ -34,7 +34,7 @@ jobs:
           cd docs
           make html
           cd ..
-          
+
       - name: Upload artifact
         uses: actions/upload-artifact@v2
         with:

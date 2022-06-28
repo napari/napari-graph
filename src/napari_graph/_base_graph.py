@@ -1,11 +1,10 @@
-from typing import Dict, List, Callable, Optional, Union, Tuple
-from numpy.typing import ArrayLike
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
-
-from numba import njit, typed, prange
+from numba import njit, prange, typed
 from numba.core import types
+from numpy.typing import ArrayLike
 
 # generic constants
 _EDGE_EMPTY_PTR = -1

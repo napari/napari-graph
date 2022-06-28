@@ -1,14 +1,13 @@
-from typing import List, Tuple, Optional, Union
-from numpy.typing import ArrayLike
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
-
 from numba import njit, typed
+from numpy.typing import ArrayLike
 
 from napari_graph._base_graph import (
+    _EDGE_EMPTY_PTR,
     BaseGraph,
     _iterate_edges,
-    _EDGE_EMPTY_PTR,
     _remove_edge,
 )
 
@@ -21,10 +20,10 @@ the edge undirected linked list position.
 Example of a directed graph edge buffer:
 [
     source_node_buffer_id_0,
-    target_node_buffer_id_0, 
+    target_node_buffer_id_0,
     edge_linked_list_0,
     source_node_buffer_id_1,
-    target_node_buffer_id_1, 
+    target_node_buffer_id_1,
     edge_linked_list_1,
     ...
 ]

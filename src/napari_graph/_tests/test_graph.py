@@ -1,12 +1,12 @@
-import pytest
+from typing import Callable, List, Tuple, Type
+
 import numpy as np
 import pandas as pd
-
+import pytest
 from numpy.typing import ArrayLike
-from typing import Tuple, Callable, List, Type
 
-from napari_graph import UndirectedGraph, DirectedGraph
-from napari_graph._base_graph import BaseGraph, _EDGE_EMPTY_PTR
+from napari_graph import DirectedGraph, UndirectedGraph
+from napari_graph._base_graph import _EDGE_EMPTY_PTR, BaseGraph
 from napari_graph.undirected_graph import _LL_UN_EDGE_POS, _UN_EDGE_SIZE
 
 
@@ -107,9 +107,7 @@ def test_node_addition(n_prealloc_nodes: int) -> None:
         assert len(graph) == i + 1
 
     np.testing.assert_allclose(graph._coords[: len(graph)], coords)
-    np.testing.assert_array_equal(
-        graph._buffer2world[: len(graph)], indices
-    )
+    np.testing.assert_array_equal(graph._buffer2world[: len(graph)], indices)
     np.testing.assert_array_equal(
         graph._map_world2buffer(indices), range(size)
     )
@@ -286,6 +284,7 @@ class TestUndirectedGraph(TestGraph):
 def test_benchmark_construction_speed() -> None:
     # FIXME: remove this, maybe create an airspeed velocity CI
     from timeit import default_timer
+
     import networkx as nx
 
     nodes_df, edges = make_graph_dataframe(50000, 0.001)

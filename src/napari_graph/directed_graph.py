@@ -1,15 +1,14 @@
-from typing import List, Tuple, Optional, Union
-from numpy.typing import ArrayLike
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
-
 from numba import njit, typed
+from numpy.typing import ArrayLike
 
 from napari_graph._base_graph import (
+    _EDGE_EMPTY_PTR,
     BaseGraph,
     _iterate_edges,
-    _EDGE_EMPTY_PTR,
     _remove_edge,
 )
 from napari_graph.undirected_graph import _UN_EDGE_SIZE
@@ -23,11 +22,11 @@ the **target** edge directed linked list position.
 Example of a directed graph edge buffer:
 [
     source_node_buffer_id_0,
-    target_node_buffer_id_0, 
+    target_node_buffer_id_0,
     source_edge_linked_list_0,
     target_edge_linked_List_0,
     source_node_buffer_id_1,
-    target_node_buffer_id_1, 
+    target_node_buffer_id_1,
     source_edge_linked_list_1,
     target_edge_linked_List_1,
     ...
@@ -247,7 +246,6 @@ def _remove_unidirectional_incident_edges(
     return empty_idx, n_edges
 
 
-
 @njit
 def _iterate_directed_source_edges(
     edge_ptr_indices: np.ndarray, edges_buffer: np.ndarray
@@ -402,11 +400,14 @@ class DirectedGraph(BaseGraph):
             self._node2edges,
             self._node2tgt_edges,
         )
-    
+
     def _remove_node_edges(self, node_buffer_index: int) -> None:
         """Remove directed edges that contain `node` in either direction."""
         for is_target in (1, 0):
-            self._empty_edge_idx, self._n_edges = _remove_unidirectional_incident_edges(
+            (
+                self._empty_edge_idx,
+                self._n_edges,
+            ) = _remove_unidirectional_incident_edges(
                 node_buffer_index,
                 self._empty_edge_idx,
                 self._n_edges,

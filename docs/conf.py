@@ -14,8 +14,8 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 # Add the local code to the Python path, so docs are generated for
 # current working copy
-import os
-import sys
+
+import napari_graph
 
 # -- General configuration ------------------------------------------------
 
@@ -29,18 +29,20 @@ execution_timeout = 300  # in seconds?
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-        'sphinx.ext.autodoc',
-        'sphinx.ext.mathjax',
-        'sphinx.ext.viewcode',
-        'sphinx.ext.githubpages',
-        'sphinx.ext.napoleon',
-        'sphinxcontrib.bibtex',
-        'sphinx_copybutton',
-        'myst_nb',
-        ]
+    'sphinx.ext.autodoc',
+    'sphinx.ext.mathjax',
+    'sphinx.ext.viewcode',
+    'sphinx.ext.githubpages',
+    'sphinx.ext.napoleon',
+    'sphinxcontrib.bibtex',
+    'sphinx_copybutton',
+    'myst_nb',
+]
 
 # sphinx-copybutton prompt-stripping configuration
-copybutton_prompt_text = r">>> |\.\.\. |\$ |In \[\d*\]: | {2,5}\.\.\.: | {5,8}: "
+copybutton_prompt_text = (
+    r">>> |\.\.\. |\$ |In \[\d*\]: | {2,5}\.\.\.: | {5,8}: "
+)
 copybutton_prompt_is_regexp = True
 
 # Add any paths that contain templates here, relative to this directory.
@@ -65,7 +67,6 @@ author = 'Jordão Bragantini & Juan Nunez-Iglesias'
 # built documents.
 #
 # The short X.Y version.
-import napari_graph
 
 version = napari_graph.__version__
 # The full version, including alpha/beta/rc tags.
@@ -110,22 +111,17 @@ html_theme = 'sphinx_material'
 html_theme_options = {
     # Set the name of the project to appear in the navigation.
     'nav_title': 'napari-graph',
-
     # Set you GA account ID to enable tracking
     # 'google_analytics_account': 'UA-XXXXX',
-
     # Specify a base_url used to generate sitemap.xml. If not
     # specified, then no sitemap will be built.
     'base_url': 'https://napari.org/napari-graph',
-
     # Set the color and the accent color
     'color_primary': 'blue',
     'color_accent': 'light-blue',
-
     # Set the repo location to get a badge with stats
     'repo_url': 'https://github.com/napari/napari-graph',
     'repo_name': 'Skan',
-
     # Visible levels of the global TOC; -1 means unlimited
     'globaltoc_depth': 1,
     # If False, expand all TOC entries
@@ -145,7 +141,12 @@ html_static_path = ['_static']
 # This is required for the alabaster theme
 # refs: http://alabaster.readthedocs.io/en/latest/installation.html#sidebars
 html_sidebars = {
-    "**": ["logo-text.html", "globaltoc.html", "localtoc.html", "searchbox.html"]
+    "**": [
+        "logo-text.html",
+        "globaltoc.html",
+        "localtoc.html",
+        "searchbox.html",
+    ]
 }
 
 # -- Options for HTMLHelp output ------------------------------------------
@@ -156,32 +157,32 @@ htmlhelp_basename = 'napari-graph-docs'
 # -- Options for LaTeX output ---------------------------------------------
 
 latex_elements = {
-        # The paper size ('letterpaper' or 'a4paper').
-        #
-        # 'papersize': 'letterpaper',
-
-        # The font size ('10pt', '11pt' or '12pt').
-        #
-        # 'pointsize': '10pt',
-
-        # Additional stuff for the LaTeX preamble.
-        #
-        # 'preamble': '',
-
-        # Latex figure (float) alignment
-        #
-        # 'figure_align': 'htbp',
-        }
+    # The paper size ('letterpaper' or 'a4paper').
+    #
+    # 'papersize': 'letterpaper',
+    # The font size ('10pt', '11pt' or '12pt').
+    #
+    # 'pointsize': '10pt',
+    # Additional stuff for the LaTeX preamble.
+    #
+    # 'preamble': '',
+    # Latex figure (float) alignment
+    #
+    # 'figure_align': 'htbp',
+}
 
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-        (
-                master_doc, 'napari-graph.tex', 'napari-graph documentation',
-                author, 'manual'
-                ),
-        ]
+    (
+        master_doc,
+        'napari-graph.tex',
+        'napari-graph documentation',
+        author,
+        'manual',
+    ),
+]
 
 # -- Options for manual page output ---------------------------------------
 
@@ -195,9 +196,13 @@ man_pages = [(master_doc, 'napari-graph-documentation', [author], 1)]
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-        (
-                master_doc, 'napari-graph', 'napari-graph documentation',
-                author, 'napari-graph',
-                'Fast editable graphs in Python', 'Miscellaneous'
-                ),
-        ]
+    (
+        master_doc,
+        'napari-graph',
+        'napari-graph documentation',
+        author,
+        'napari-graph',
+        'Fast editable graphs in Python',
+        'Miscellaneous',
+    ),
+]
