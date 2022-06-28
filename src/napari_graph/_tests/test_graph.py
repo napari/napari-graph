@@ -104,11 +104,11 @@ def test_node_addition(n_prealloc_nodes: int) -> None:
     graph = DirectedGraph(n_prealloc_nodes, ndim, 0)
     for i in range(size):
         graph.add_node(indices[i], coords[i])
-        assert graph.n_nodes == i + 1
+        assert len(graph) == i + 1
 
-    np.testing.assert_allclose(graph._coords[: graph.n_nodes], coords)
+    np.testing.assert_allclose(graph._coords[: len(graph)], coords)
     np.testing.assert_array_equal(
-        graph._buffer2world[: graph.n_nodes], indices
+        graph._buffer2world[: len(graph)], indices
     )
     np.testing.assert_array_equal(
         graph._map_world2buffer(indices), range(size)
@@ -193,7 +193,7 @@ class TestDirectedGraph(TestGraph):
 
     def test_node_removal(self) -> None:
         nodes = [3, 4, 1]
-        original_size = self.graph.n_nodes
+        original_size = len(self.graph)
 
         for i in range(len(nodes)):
             node = nodes[i]
@@ -206,7 +206,7 @@ class TestDirectedGraph(TestGraph):
                 assert node not in edge
 
             assert node not in self.graph.nodes()
-            assert self.graph.n_nodes == original_size - i - 1
+            assert len(self.graph) == original_size - i - 1
 
     def test_edge_coordinates(self) -> None:
         coords = self.nodes_df.values[self.edges]
@@ -246,7 +246,7 @@ class TestUndirectedGraph(TestGraph):
 
     def test_node_removal(self) -> None:
         nodes = [3, 4, 1]
-        original_size = self.graph.n_nodes
+        original_size = len(self.graph)
 
         for i in range(len(nodes)):
             node = nodes[i]
@@ -256,7 +256,7 @@ class TestUndirectedGraph(TestGraph):
                 assert node not in edge
 
             assert node not in self.graph.nodes()
-            assert self.graph.n_nodes == original_size - i - 1
+            assert len(self.graph) == original_size - i - 1
 
         self.assert_empty_linked_list_pairs_are_neighbors()
 

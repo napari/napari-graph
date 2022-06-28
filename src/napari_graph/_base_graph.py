@@ -249,7 +249,7 @@ class BaseGraph:
         self._feats = nodes_df.drop(coordinates_columns, axis=1)
 
     @property
-    def n_allocated_nodes(self) -> int:
+    def _n_allocated_nodes(self) -> int:
         """Number of total allocated nodes."""
         return len(self._buffer2world)
 
@@ -258,10 +258,9 @@ class BaseGraph:
         """Number of nodes allocated but not used."""
         return len(self._empty_nodes)
 
-    @property
-    def n_nodes(self) -> int:
+    def __len__(self) -> int:
         """Number of nodes in use."""
-        return self.n_allocated_nodes - self.n_empty_nodes
+        return self._n_allocated_nodes - self.n_empty_nodes
 
     def nodes(self) -> np.ndarray:
         """Indices of graph nodes."""
@@ -288,7 +287,7 @@ class BaseGraph:
         size : int
             New buffer size.
         """
-        prev_size = self.n_allocated_nodes
+        prev_size = self._n_allocated_nodes
         size_diff = size - prev_size
 
         if size_diff < 0:
@@ -330,7 +329,7 @@ class BaseGraph:
         if self.n_empty_nodes == 0:
             self._realloc_nodes_buffers(
                 max(
-                    self.n_allocated_nodes * self._ALLOC_MULTIPLIER,
+                    self._n_allocated_nodes * self._ALLOC_MULTIPLIER,
                     self._ALLOC_MIN,
                 )
             )

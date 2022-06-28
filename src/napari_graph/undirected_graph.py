@@ -12,8 +12,23 @@ from napari_graph._base_graph import (
     _remove_edge,
 )
 
+"""
+Undirected edge constants for accessing the directed graph buffer data.
+Each edge occupies _UN_EDGE_SIZE spaces on the graph buffer.
+_LL_UN_EDGE_POS indicates the displacement between the edge initial index and
+the edge undirected linked list position.
 
-# undirected edge constants
+Example of a directed graph edge buffer:
+[
+    source_node_buffer_id_0,
+    target_node_buffer_id_0, 
+    edge_linked_list_0,
+    source_node_buffer_id_1,
+    target_node_buffer_id_1, 
+    edge_linked_list_1,
+    ...
+]
+"""
 _UN_EDGE_SIZE = 3
 _LL_UN_EDGE_POS = 2
 

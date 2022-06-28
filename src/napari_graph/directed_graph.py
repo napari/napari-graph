@@ -14,7 +14,25 @@ from napari_graph._base_graph import (
 )
 from napari_graph.undirected_graph import _UN_EDGE_SIZE
 
-# directed edge constants
+"""
+Directed edge constants for accessing the directed graph buffer data.
+Each edge occupies _DI_EDGE_SIZE spaces on the graph buffer.
+_LL_DI_EDGE_POS indicates the displacement between the edge initial index and
+the **target** edge directed linked list position.
+
+Example of a directed graph edge buffer:
+[
+    source_node_buffer_id_0,
+    target_node_buffer_id_0, 
+    source_edge_linked_list_0,
+    target_edge_linked_List_0,
+    source_node_buffer_id_1,
+    target_node_buffer_id_1, 
+    source_edge_linked_list_1,
+    target_edge_linked_List_1,
+    ...
+]
+"""
 _DI_EDGE_SIZE = _UN_EDGE_SIZE + 1
 _LL_DI_EDGE_POS = 2
 
@@ -229,40 +247,6 @@ def _remove_unidirectional_incident_edges(
     return empty_idx, n_edges
 
 
-@njit
-def _remove_incident_directed_edges(
-    node: int,
-    empty_idx: int,
-    n_edges: int,
-    edges_buffer: np.ndarray,
-    node2src_edges: np.ndarray,
-    node2tgt_edges: np.ndarray,
-) -> Tuple[int, int]:
-    """Remove directed edges that contain `node` in either direction."""
-    # does it need to be jitted? why not
-
-    empty_idx, n_edges = _remove_unidirectional_incident_edges(
-        node,
-        empty_idx,
-        n_edges,
-        edges_buffer,
-        node2src_edges,
-        node2tgt_edges,
-        is_target=1,
-    )
-
-    empty_idx, n_edges = _remove_unidirectional_incident_edges(
-        node,
-        empty_idx,
-        n_edges,
-        edges_buffer,
-        node2src_edges,
-        node2tgt_edges,
-        is_target=0,
-    )
-
-    return empty_idx, n_edges
-
 
 @njit
 def _iterate_directed_source_edges(
@@ -333,7 +317,7 @@ class DirectedGraph(BaseGraph):
             self._node2tgt_edges.fill(_EDGE_EMPTY_PTR)
 
     def _realloc_nodes_buffers(self, size: int) -> None:
-        diff_size = size - self.n_allocated_nodes
+        diff_size = size - self._n_allocated_nodes
         super()._realloc_nodes_buffers(size)
         self._node2tgt_edges = np.append(
             self._node2tgt_edges,
@@ -418,13 +402,16 @@ class DirectedGraph(BaseGraph):
             self._node2edges,
             self._node2tgt_edges,
         )
-
+    
     def _remove_node_edges(self, node_buffer_index: int) -> None:
-        self._empty_edge_idx, self._n_edges = _remove_incident_directed_edges(
-            node_buffer_index,
-            self._empty_edge_idx,
-            self._n_edges,
-            self._edges_buffer,
-            self._node2edges,
-            self._node2tgt_edges,
-        )
+        """Remove directed edges that contain `node` in either direction."""
+        for is_target in (1, 0):
+            self._empty_edge_idx, self._n_edges = _remove_unidirectional_incident_edges(
+                node_buffer_index,
+                self._empty_edge_idx,
+                self._n_edges,
+                self._edges_buffer,
+                self._node2edges,
+                self._node2tgt_edges,
+                is_target,
+            )
