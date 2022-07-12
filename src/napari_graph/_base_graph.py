@@ -1,8 +1,9 @@
+from abc import abstractmethod
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
-from numba import njit, prange, typed
+from numba import njit, typed
 from numba.core import types
 from numpy.typing import ArrayLike
 
@@ -132,13 +133,13 @@ def _create_world2buffer_map(world_idx: np.ndarray) -> typed.Dict:
     return world2buffer
 
 
-@njit(parallel=True)  # TODO: benchmark if parallel is worth it
+@njit
 def _vmap_world2buffer(
     world2buffer: typed.Dict, world_idx: np.ndarray
 ) -> typed.Dict:
     """Maps world indices to buffer indices."""
     buffer_idx = np.empty(world_idx.shape[0], dtype=types.int64)
-    for i in prange(world_idx.shape[0]):
+    for i in range(world_idx.shape[0]):
         buffer_idx[i] = world2buffer[world_idx[i]]
     return buffer_idx
 
@@ -248,7 +249,11 @@ class BaseGraph:
         self._feats = nodes_df.drop(coordinates_columns, axis=1)
 
     @property
-    def _n_allocated_nodes(self) -> int:
+    def ndim(self) -> int:
+        return self._coords.shape[1]
+
+    @property
+    def n_allocated_nodes(self) -> int:
         """Number of total allocated nodes."""
         return len(self._buffer2world)
 
@@ -259,7 +264,7 @@ class BaseGraph:
 
     def __len__(self) -> int:
         """Number of nodes in use."""
-        return self._n_allocated_nodes - self.n_empty_nodes
+        return self.n_allocated_nodes - self.n_empty_nodes
 
     def nodes(self) -> np.ndarray:
         """Indices of graph nodes."""
@@ -286,7 +291,7 @@ class BaseGraph:
         size : int
             New buffer size.
         """
-        prev_size = self._n_allocated_nodes
+        prev_size = self.n_allocated_nodes
         size_diff = size - prev_size
 
         if size_diff < 0:
@@ -327,9 +332,11 @@ class BaseGraph:
 
         if self.n_empty_nodes == 0:
             self._realloc_nodes_buffers(
-                max(
-                    self._n_allocated_nodes * self._ALLOC_MULTIPLIER,
-                    self._ALLOC_MIN,
+                int(
+                    max(
+                        self.n_allocated_nodes * self._ALLOC_MULTIPLIER,
+                        self._ALLOC_MIN,
+                    )
                 )
             )
 
@@ -347,13 +354,24 @@ class BaseGraph:
 
         self._feats = pd.concat((self._feats, features))
 
-    def remove_node(self, index: int) -> None:
-        """Remove node of given `index`."""
+    def remove_node(self, index: int, is_buffer_domain: bool = False) -> None:
+        """Remove node of given `index`, by default it's the world index.
+
+        Parameters
+        ----------
+        index : int
+            node index
+        is_buffer_domain : bool, optional
+            indicates if the index in on the buffer domain, by default False
+        """
+        if is_buffer_domain:
+            index = self._buffer2world[index]
         buffer_index = self._world2buffer.pop(index)
         self._remove_node_edges(buffer_index)
         self._buffer2world[buffer_index] = self._NODE_EMPTY_PTR
         self._empty_nodes.append(buffer_index)
 
+    @abstractmethod
     def _remove_node_edges(self, node_buffer_index: int) -> None:
         """Abstract method, removes node at given buffer index."""
         raise NotImplementedError
@@ -466,6 +484,7 @@ class BaseGraph:
 
         return edges
 
+    @abstractmethod
     def _add_edges(self, edges: np.ndarray) -> None:
         """Abstract method.
 
@@ -491,6 +510,7 @@ class BaseGraph:
 
         self._add_edges(edges)
 
+    @abstractmethod
     def _remove_edges(self, edges: np.ndarray) -> None:
         raise NotImplementedError
 
@@ -620,8 +640,16 @@ class BaseGraph:
         else:
             return edges_data
 
-    def edges_buffers(self) -> Tuple[np.ndarray, np.ndarray]:
-        """Return valid edges in buffer and world domains.
+    @abstractmethod
+    def edges(
+        self, nodes: Optional[ArrayLike] = None, mode: str = 'indices'
+    ) -> Union[List[np.ndarray], np.ndarray]:
+        raise NotImplementedError
+
+    def edges_buffers(
+        self, is_buffer_domain: bool = False
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Return valid edges in buffer or world domain.
 
         Return the indices (buffer domain) and the (source, target) values
         (world domain) of all valid edges.
@@ -630,10 +658,15 @@ class BaseGraph:
 
         This function is useful for loading the data for visualization.
 
+        Parameters
+        ----------
+        is_buffer_domain : bool
+            flag indicating if it should return `world` or `buffer` domain.
+
         Returns
         -------
         Tuple[np.ndarray, np.ndarray]
-            Buffer indices (buffer domain) and (source, target) (world domain).
+            Buffer indices (buffer domain) and (source, target) (world domain by default).
         """
         unique_edge_size = self._EDGE_SIZE * self._EDGE_DUPLICATION
         buffer_size = len(self._edges_buffer)
@@ -645,7 +678,9 @@ class BaseGraph:
 
         valid = edges[:, 0] != _EDGE_EMPTY_PTR
 
-        edges = self._buffer2world[edges[valid]]
         indices = indices[valid]
+        edges = edges[valid]
+        if not is_buffer_domain:
+            edges = self._buffer2world[edges]
 
         return indices, edges

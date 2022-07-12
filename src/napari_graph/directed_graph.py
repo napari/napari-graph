@@ -315,7 +315,7 @@ class DirectedGraph(BaseGraph):
             self._node2tgt_edges.fill(_EDGE_EMPTY_PTR)
 
     def _realloc_nodes_buffers(self, size: int) -> None:
-        diff_size = size - self._n_allocated_nodes
+        diff_size = size - self.n_allocated_nodes
         super()._realloc_nodes_buffers(size)
         self._node2tgt_edges = np.append(
             self._node2tgt_edges,
