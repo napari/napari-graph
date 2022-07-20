@@ -39,8 +39,8 @@ _LL_DI_EDGE_POS = 2
 @njit
 def _add_directed_edge(
     buffer: np.ndarray,
-    node2src_edge: np.ndarray,
-    node2tgt_edge: np.ndarray,
+    node2src_edges: np.ndarray,
+    node2tgt_edges: np.ndarray,
     empty_idx: int,
     src_node: int,
     tgt_node: int,
@@ -52,10 +52,25 @@ def _add_directed_edge(
 
     NOTE: see `_add_undirected_edge` docs for comment about cache misses.
 
-     Returns
+    Parameters
+    ----------
+    buffer : np.ndarray
+        Edges buffer.
+    node2src_edges : np.ndarray
+        Mapping from node indices to source edge buffer indices -- head of edges linked list.
+    node2tgt_edges : np.ndarray
+        Mapping from node indices to target edge buffer indices -- head of edges linked list.
+    empty_idx : int
+        First index of empty edges linked list.
+    src_node : int
+        Source node of added edge.
+    tgt_node : int
+        Target node of added edge.
+
+    Returns
     -------
     int
-        Next empty edge index position.
+        New first index of empty edges linked list.
     """
     if empty_idx == _EDGE_EMPTY_PTR:
         raise ValueError("Edge buffer is full.")
@@ -63,10 +78,10 @@ def _add_directed_edge(
     elif empty_idx < 0:
         raise ValueError("Invalid empty index.")
 
-    next_src_edge = node2src_edge[src_node]
-    next_tgt_edge = node2tgt_edge[tgt_node]
-    node2src_edge[src_node] = empty_idx
-    node2tgt_edge[tgt_node] = empty_idx
+    next_src_edge = node2src_edges[src_node]
+    next_tgt_edge = node2tgt_edges[tgt_node]
+    node2src_edges[src_node] = empty_idx
+    node2tgt_edges[tgt_node] = empty_idx
 
     buffer_index = empty_idx * _DI_EDGE_SIZE
     next_empty = buffer[buffer_index + _LL_DI_EDGE_POS]
@@ -85,8 +100,8 @@ def _add_directed_edges(
     edges: np.ndarray,
     empty_idx: int,
     n_edges: int,
-    node2src_edge: np.ndarray,
-    node2tgt_edge: np.ndarray,
+    node2src_edges: np.ndarray,
+    node2tgt_edges: np.ndarray,
 ) -> Tuple[int, int]:
     """Add an array of edges into the `buffer`.
 
@@ -98,8 +113,8 @@ def _add_directed_edges(
 
         empty_idx = _add_directed_edge(
             buffer,
-            node2src_edge,
-            node2tgt_edge,
+            node2src_edges,
+            node2tgt_edges,
             empty_idx,
             edges[i, 0],
             edges[i, 1],
@@ -117,10 +132,19 @@ def _remove_target_edge(
     node2tgt_edges: np.ndarray,
 ) -> None:
     """Remove edge from target edges linked list.
-
     It doesn't clean the buffer, because it'll be used later.
-    """
 
+    Parameters
+    ----------
+    src_node : int
+        Source node of added edge.
+    tgt_node : int
+        Target node of added edge.
+    edges_buffer : np.ndarray
+        Edges buffer.
+    node2tgt_edges : np.ndarray
+        Mapping from node indices to target edge buffer indices -- head of edges linked list.
+    """
     idx = node2tgt_edges[tgt_node]  # different indexing from source edge
     prev_buffer_idx = _EDGE_EMPTY_PTR
 
@@ -215,6 +239,28 @@ def _remove_unidirectional_incident_edges(
 
     The parameter `is_target` should be zero to remove edges where `node` is
     the source node, and 1 for the target node.
+
+    Parameters
+    ----------
+    node : int
+        Node index in the buffer domain.
+    empty_idx : int
+        Index first edge (head of) linked list
+    n_edges : int
+        Current number of total edges
+    edges_buffer : np.ndarray
+        Buffer containing the edges data
+    node2src_edges : np.ndarray
+        Mapping from node indices to source edge buffer indices -- head of edges linked list.
+    node2tgt_edges : np.ndarray
+        Mapping from node indices to target edge buffer indices -- head of edges linked list.
+    is_target : int
+        Binary integer flag indicating if it is a target or not, used to shift linked list position.
+
+    Returns
+    -------
+    Tuple[int, int]
+        New empty linked list head, new number of edges
     """
     if is_target:
         idx = node2tgt_edges[node]

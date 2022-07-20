@@ -7,7 +7,9 @@ from numba import njit, typed
 from numba.core import types
 from numpy.typing import ArrayLike
 
-# generic constants
+"""
+_EDGE_EMPTY_PTR is used to fill the values of uninitialized/empty/removed nodes or edges
+"""
 _EDGE_EMPTY_PTR = -1
 
 
@@ -37,8 +39,7 @@ def _remove_edge(
     edges_buffer : np.ndarray
         Buffer of edges data.
     node2edges : np.ndarray
-        Head of edges linked list, a mapping from node buffer indices to edge
-        buffer indices.
+        Mapping from node indices to edge buffer indices -- head of edges linked list.
     edge_size : int
         Size of the edges on the buffer. It should be inlined when compiled.
     ll_edge_pos : int
@@ -557,7 +558,7 @@ class BaseGraph:
         node_world_indices : ArrayLike
             Nodes world indices.
         node2edges : np.ndarray
-            Mapping from nodes to edges (edges linked list heads).
+            Mapping from node indices to edge buffer indices -- head of edges linked list.
         iterate_edges_func : [np.ndarray, np.ndarray] -> List[np.ndarray]
             Function that iterates the edges from `edges_ptr_indices` and
             `edges_buffer`.
@@ -592,7 +593,7 @@ class BaseGraph:
         node_world_indices : ArrayLike
             Nodes world indices.
         node2edges : np.ndarray
-            Mapping from nodes to edges (edges linked list heads).
+            Mapping from node indices to edge buffer indices -- head of edges linked list.
         iterate_edges_func : [np.ndarray, np.ndarray] -> List[np.ndarray]
             Function that iterates the edges from `edges_ptr_indices` and
             `edges_buffer`.

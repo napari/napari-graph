@@ -35,7 +35,7 @@ _LL_UN_EDGE_POS = 2
 @njit
 def _add_undirected_edge(
     buffer: np.ndarray,
-    node2edge: np.ndarray,
+    node2edges: np.ndarray,
     empty_idx: int,
     src_node: int,
     tgt_node: int,
@@ -50,10 +50,23 @@ def _add_undirected_edge(
     decrease cache hits because they're sorted in memory in the opposite
     direction we iterate it.
 
+    Parameters
+    ----------
+    buffer : np.ndarray
+        Edges buffer.
+    node2edges : np.ndarray
+        Mapping from node indices to edge buffer indices -- head of edges linked list.
+    empty_idx : int
+        First index of empty edges linked list.
+    src_node : int
+        Source node of added edge.
+    tgt_node : int
+        Target node of added edge.
+
     Returns
     -------
     int
-        Next empty edge index position.
+        New first index of empty edges linked list.
     """
 
     if empty_idx == _EDGE_EMPTY_PTR:
@@ -62,8 +75,8 @@ def _add_undirected_edge(
     elif empty_idx < 0:
         raise ValueError("Invalid empty index.")
 
-    next_edge = node2edge[src_node]
-    node2edge[src_node] = empty_idx
+    next_edge = node2edges[src_node]
+    node2edges[src_node] = empty_idx
 
     buffer_index = empty_idx * _UN_EDGE_SIZE
     next_empty = buffer[buffer_index + _LL_UN_EDGE_POS]
@@ -81,7 +94,7 @@ def _add_undirected_edges(
     edges: np.ndarray,
     empty_idx: int,
     n_edges: int,
-    node2edge: np.ndarray,
+    node2edges: np.ndarray,
 ) -> Tuple[int, int]:
     """Add an array of edges into the `buffer`.
 
@@ -93,11 +106,11 @@ def _add_undirected_edges(
 
         # adding (u, v)
         empty_idx = _add_undirected_edge(
-            buffer, node2edge, empty_idx, edges[i, 0], edges[i, 1]
+            buffer, node2edges, empty_idx, edges[i, 0], edges[i, 1]
         )
         # adding (v, u)
         empty_idx = _add_undirected_edge(
-            buffer, node2edge, empty_idx, edges[i, 1], edges[i, 0]
+            buffer, node2edges, empty_idx, edges[i, 1], edges[i, 0]
         )
 
         n_edges += 1
@@ -167,6 +180,24 @@ def _remove_incident_undirected_edges(
     """Removes every edges that contains `node_idx`.
 
     NOTE: Edges are removed such that empty pairs are consecutive in memory.
+
+    Parameters
+    ----------
+    node : int
+        Node index in the buffer domain.
+    empty_idx : int
+        Index first edge (head of) linked list
+    n_edges : int
+        Current number of total edges
+    edges_buffer : np.ndarray
+        Buffer containing the edges data
+    node2edges : np.ndarray
+        Mapping from node indices to edge buffer indices -- head of edges linked list.
+
+    Returns
+    -------
+    Tuple[int, int]
+        New empty linked list head, new number of edges
     """
 
     # the edges are removed such that the empty edges linked list contains
