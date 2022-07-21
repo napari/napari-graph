@@ -148,7 +148,12 @@ def _remove_target_edge(
     idx = node2tgt_edges[tgt_node]  # different indexing from source edge
     prev_buffer_idx = _EDGE_EMPTY_PTR
 
-    while idx != _EDGE_EMPTY_PTR:
+    for _ in range(edges_buffer.shape[0] // _DI_EDGE_SIZE):
+        if idx == _EDGE_EMPTY_PTR:
+            raise ValueError(
+                "Could not find target node at directed edge removal."
+            )
+
         buffer_idx = idx * _DI_EDGE_SIZE
         next_edge_idx = edges_buffer[buffer_idx + _LL_DI_EDGE_POS + 1]
 
@@ -167,13 +172,15 @@ def _remove_target_edge(
                 ] = next_edge_idx
 
             edges_buffer[buffer_idx + _LL_DI_EDGE_POS + 1] = _EDGE_EMPTY_PTR
-            return
+            break
 
         # moving to next edge
         idx = next_edge_idx
         prev_buffer_idx = buffer_idx
-
-    raise ValueError("Found an invalid edge at edge removal")
+    else:
+        raise ValueError(
+            "Infinite loop detected at target edge removal, edges buffer must be corrupted."
+        )
 
 
 @njit
@@ -267,7 +274,11 @@ def _remove_unidirectional_incident_edges(
     else:
         idx = node2src_edges[node]
 
-    while idx != _EDGE_EMPTY_PTR:
+    # safe guard against a corrupted buffer causing an infite loop
+    for _ in range(edges_buffer.shape[0] // _DI_EDGE_SIZE):
+        if idx == _EDGE_EMPTY_PTR:
+            break  # no edges left at the given node
+
         buffer_idx = idx * _DI_EDGE_SIZE
         next_idx = edges_buffer[buffer_idx + _LL_DI_EDGE_POS + is_target]
 

@@ -55,7 +55,11 @@ def _remove_edge(
     idx = node2edges[src_node]
     prev_buffer_idx = _EDGE_EMPTY_PTR
 
-    while idx != _EDGE_EMPTY_PTR:
+    # safe guard against a corrupted buffer causing an infite loop
+    for _ in range(edges_buffer.shape[0] // edge_size):
+        if idx == _EDGE_EMPTY_PTR:
+            raise ValueError("Could not find/remove edge.")
+
         buffer_idx = idx * edge_size
         next_edge_idx = edges_buffer[buffer_idx + ll_edge_pos]
 
@@ -69,14 +73,19 @@ def _remove_edge(
 
             # clean up not necessary but good practice
             edges_buffer[buffer_idx : buffer_idx + edge_size] = _EDGE_EMPTY_PTR
-
             edges_buffer[buffer_idx + ll_edge_pos] = empty_idx
-            return idx
+
+            break
+
         # moving to next edge
         idx = next_edge_idx
         prev_buffer_idx = buffer_idx
+    else:
+        raise ValueError(
+            "Infinite loop detected at edge removal, edges buffer must be corrupted."
+        )
 
-    raise ValueError("Found an invalid edge at edge removal")
+    return idx
 
 
 @njit(inline='always')
