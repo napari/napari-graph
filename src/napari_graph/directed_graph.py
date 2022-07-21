@@ -299,6 +299,10 @@ def _remove_unidirectional_incident_edges(
 
         idx = next_idx
         n_edges = n_edges - 1
+    else:
+        raise ValueError(
+            "Infinite loop detected at directed graph node removal, edges buffer must be corrupted."
+        )
 
     return empty_idx, n_edges
 

@@ -205,7 +205,10 @@ def _remove_incident_undirected_edges(
     # numpy vectorization
     idx = node2edges[node]
 
-    while idx != _EDGE_EMPTY_PTR:
+    for _ in range(edges_buffer.shape[0] // _UN_EDGE_SIZE):
+        if idx == _EDGE_EMPTY_PTR:
+            break  # no edges left at the given node
+
         buffer_idx = idx * _UN_EDGE_SIZE
         next_idx = edges_buffer[buffer_idx + _LL_UN_EDGE_POS]
         # checking if sibling edges is before or after current node
@@ -245,6 +248,10 @@ def _remove_incident_undirected_edges(
 
         idx = next_idx
         n_edges = n_edges - 1
+    else:
+        raise ValueError(
+            "Infinite loop detected at undirected graph node removal, edges buffer must be corrupted."
+        )
 
     return empty_idx, n_edges
 
