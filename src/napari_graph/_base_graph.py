@@ -357,7 +357,9 @@ class BaseGraph:
             raise ValueError("Tried to realloc to current buffer size.")
 
         if self._coords is not None:
-            self._coords.resize((size, self._coords.shape[1]))  # zero-filled
+            self._coords.resize(
+                (size, self._coords.shape[1]), refcheck=False
+            )  # zero-filled
 
         self._node2edges = np.append(
             self._node2edges,
@@ -395,18 +397,16 @@ class BaseGraph:
 
         if self.n_empty_nodes == 0:
             self._realloc_nodes_buffers(
-                int(
-                    max(
-                        self.n_allocated_nodes * self._ALLOC_MULTIPLIER,
-                        self._ALLOC_MIN,
-                    )
-                )
+                self._alloc_size(self.n_allocated_nodes)
             )
 
         buffer_index = self._empty_nodes.pop()
         self._coords[buffer_index, :] = coords
         self._world2buffer[index] = buffer_index
         self._buffer2world[buffer_index] = index
+
+    def _alloc_size(self, size: int) -> int:
+        return int(max(size * self._ALLOC_MULTIPLIER, self._ALLOC_MIN))
 
     def remove_node(self, index: int, is_buffer_domain: bool = False) -> None:
         """Remove node of given `index`, by default it's the world index.
@@ -562,7 +562,9 @@ class BaseGraph:
         edges = self._validate_edges(edges)
 
         if self.n_empty_edges < len(edges):
-            self._realloc_edges_buffers(self.n_allocated_edges + len(edges))
+            self._realloc_edges_buffers(
+                self._alloc_size(self.n_edges + len(edges))
+            )
 
         self._add_edges(edges)
 
