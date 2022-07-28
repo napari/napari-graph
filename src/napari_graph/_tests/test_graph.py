@@ -269,30 +269,3 @@ class TestUndirectedGraph(TestGraph):
             empty_idx = self.graph._edges_buffer[
                 next_empty_idx * _UN_EDGE_SIZE + _LL_UN_EDGE_POS
             ]
-
-
-def test_benchmark_construction_speed() -> None:
-    # FIXME: remove this, maybe create an airspeed velocity CI
-    from timeit import default_timer
-
-    import networkx as nx
-
-    coords, edges = make_graph_dataframe(50000, 0.001)
-
-    print('# edges', len(edges))
-
-    start = default_timer()
-    graph = UndirectedGraph(
-        edges=edges,
-        coords=coords,
-    )
-
-    print('our init time', default_timer() - start)
-
-    start = default_timer()
-
-    graph = nx.Graph()
-    graph.add_nodes_from(coords.to_dict('index').items())
-    graph.add_edges_from(edges)
-
-    print('networkx init time', default_timer() - start)
