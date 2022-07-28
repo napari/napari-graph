@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Callable, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -159,12 +159,16 @@ class BaseGraph:
 
     Parameters
     ----------
-    n_nodes : int
-        Number of nodes to allocate to graph.
-    ndim : int
+    edges : ArrayLike
+        Nx2 array of pair of nodes (edges).
+    coords :
+        Optional array of spatial coordinates of nodes.
+    dim : int
         Number of spatial dimensions of graph.
+    n_nodes : int
+        Optional number of nodes to pre-allocate in the graph.
     n_edges : int
-        Number of edges of the graph.
+        Optional number of edges to pre-allocate in the graph.
     """
 
     _NODE_EMPTY_PTR = -1
@@ -178,10 +182,62 @@ class BaseGraph:
     _ALLOC_MULTIPLIER = 1.1
     _ALLOC_MIN = 25
 
-    def __init__(self, n_nodes: int, ndim: int, n_edges: int):
+    def __init__(
+        self,
+        edges: ArrayLike = [],
+        coords: Optional[Union[pd.DataFrame, ArrayLike]] = None,
+        dim: Optional[int] = None,
+        n_nodes: Optional[int] = None,
+        n_edges: Optional[int] = None,
+    ):
+
+        # validating edges length
+        if n_edges is None:
+            n_edges = len(edges)
+
+        if n_edges < len(edges):
+            raise ValueError(
+                f"`n_edges` ({n_edges}) must be greater or equal than `edges` length ({len(edges)}."
+            )
+
+        # validating n_nodes and coords
+        self._coords = None
+        if coords is not None:
+            if dim is not None:
+                raise ValueError(
+                    "`dim` and `coords` cannot be supplied at the same time."
+                )
+
+            if not isinstance(coords, pd.DataFrame):
+                coords = np.asarray(coords)
+
+            dim = coords.shape[1]
+
+            if n_nodes is None:
+                n_nodes = len(coords)
+
+            if n_nodes < len(coords):
+                raise ValueError(
+                    f"`n_nodes` ({n_nodes}) must be greater or equal than `coords` length ({len(coords)})."
+                )
+
+        elif n_nodes is None:
+            n_nodes = 0
+
+        # allocates coords if dim was provided
+        if dim is not None:
+            self._coords = np.empty((n_nodes, dim), dtype=np.float32)
+
+        self._init_buffers(n_nodes=n_nodes, n_edges=n_edges)
+
+        if coords is not None:
+            self.init_data_from_dataframe(coords)
+
+        if len(edges) > 0:
+            self.add_edges(edges)
+
+    def _init_buffers(self, n_nodes: int, n_edges: int) -> None:
         # node-wise buffers
-        self._coords = np.zeros((n_nodes, ndim), dtype=np.float32)
-        self._feats = pd.DataFrame()
         self._empty_nodes: List[int] = list(reversed(range(n_nodes)))
         self._node2edges = np.full(
             n_nodes, fill_value=_EDGE_EMPTY_PTR, dtype=int
@@ -190,7 +246,6 @@ class BaseGraph:
         self._buffer2world = np.full(
             n_nodes, fill_value=self._NODE_EMPTY_PTR, dtype=int
         )
-
         # edge-wise buffers
         self._empty_edge_idx = 0 if n_edges > 0 else _EDGE_EMPTY_PTR
         self._n_edges = 0
@@ -203,47 +258,42 @@ class BaseGraph:
             self._LL_EDGE_POS : -self._EDGE_SIZE : self._EDGE_SIZE
         ] = np.arange(1, self._EDGE_DUPLICATION * n_edges)
 
-    def init_nodes_from_dataframe(
+    def init_data_from_dataframe(
         self,
-        nodes_df: pd.DataFrame,
-        coordinates_columns: List[str],
+        coords: Union[pd.DataFrame, ArrayLike],
     ) -> None:
         """Initialize graph nodes from data frame data.
 
-        Graph nodes will be indexed by data frame indices.
+        Graph nodes will be indexed by data frame (or array) indices.
 
         Parameters
         ----------
-        nodes_df : pd.DataFrame
-            Data frame containing node's features and coordinates.
-        coordinates_columns : List[str]
-            Names of coordinate columns.
+        coords : pd.DataFrame
+            Data frame containing nodes coordinates.
         """
-        if nodes_df.index.dtype != np.int64:
+        if not isinstance(coords, pd.DataFrame):
+            coords = pd.DataFrame(coords)
+
+        if coords.index.dtype != np.int64:
             raise ValueError(
-                f"Nodes indices must be int64. Found {nodes_df.index.dtype}."
+                f"Nodes indices must be int64. Found {coords.index.dtype}."
             )
 
-        n_nodes = len(nodes_df)
+        n_nodes = len(coords)
 
-        if (
-            n_nodes > self._coords.shape[0]
-            or len(coordinates_columns) != self._coords.shape[1]
-        ):
-            self._coords = nodes_df[coordinates_columns].values.astype(
-                np.float32, copy=True
-            )
+        if n_nodes > self._coords.shape[0]:
+            self._coords = coords.values.astype(np.float32, copy=True)
             self._node2edges = np.full(
                 n_nodes, fill_value=_EDGE_EMPTY_PTR, dtype=int
             )
-            self._buffer2world = nodes_df.index.values.astype(
+            self._buffer2world = coords.index.values.astype(
                 np.uint64, copy=True
             )
             self._empty_nodes = []
         else:
-            self._coords[:n_nodes] = nodes_df[coordinates_columns].values
+            self._coords[:n_nodes] = coords.values
             self._node2edges.fill(_EDGE_EMPTY_PTR)
-            self._buffer2world[:n_nodes] = nodes_df.index.values
+            self._buffer2world[:n_nodes] = coords.index.values
             self._empty_nodes = list(
                 reversed(range(n_nodes, len(self._buffer2world)))
             )  # reversed so we add nodes to the end of it
@@ -251,12 +301,6 @@ class BaseGraph:
         self._world2buffer = _create_world2buffer_map(
             self._buffer2world[:n_nodes]
         )
-
-        # NOTE:
-        #  - feats and buffers arrays length may not match after this
-        #  - feats should be indexed by their pandas DataFrame index
-        #    (world index)
-        self._feats = nodes_df.drop(coordinates_columns, axis=1)
 
     @property
     def ndim(self) -> int:
@@ -312,7 +356,9 @@ class BaseGraph:
         elif size_diff == 0:
             raise ValueError("Tried to realloc to current buffer size.")
 
-        self._coords.resize((size, self._coords.shape[1]))  # zero-filled
+        if self._coords is not None:
+            self._coords.resize((size, self._coords.shape[1]))  # zero-filled
+
         self._node2edges = np.append(
             self._node2edges,
             np.full(size_diff, fill_value=_EDGE_EMPTY_PTR, dtype=int),
@@ -323,10 +369,10 @@ class BaseGraph:
         )
         self._empty_nodes = list(reversed(range(prev_size, size)))
 
-        # FIXME: self._feats --- how should it be pre-allocated?
-
     def add_node(
-        self, index: int, coords: np.ndarray, features: Dict = {}
+        self,
+        index: int,
+        coords: Optional[ArrayLike] = None,
     ) -> None:
         """Adds node to graph.
 
@@ -335,10 +381,17 @@ class BaseGraph:
         index : int
             Node index.
         coords : np.ndarray
-            Node coordinates.
-        features : Dict, optional
-            Node features, by default {}
+            Node coordinates, optional for non-spatial graph.
         """
+        if (self._coords is None) != (coords is None):
+            if coords is None:
+                raise ValueError(
+                    "`coords` must be provided for spatial graphs."
+                )
+            else:
+                raise ValueError(
+                    "`coords` cannot be provided for non spatial graphs."
+                )
 
         if self.n_empty_nodes == 0:
             self._realloc_nodes_buffers(
@@ -354,15 +407,6 @@ class BaseGraph:
         self._coords[buffer_index, :] = coords
         self._world2buffer[index] = buffer_index
         self._buffer2world[buffer_index] = index
-        # FIXME: not efficient, how should we pre alloc the features?
-        if len(features) > 0:
-            features = pd.DataFrame([features], index=[index])
-        else:
-            features = pd.DataFrame(
-                np.NaN, index=[index], columns=self._feats.keys()
-            )
-
-        self._feats = pd.concat((self._feats, features))
 
     def remove_node(self, index: int, is_buffer_domain: bool = False) -> None:
         """Remove node of given `index`, by default it's the world index.
@@ -407,7 +451,9 @@ class BaseGraph:
                 "Edge buffer size decrease not implemented."
             )
         elif diff_size == 0:
-            raise ValueError("Tried to realloc to current buffer size.")
+            raise ValueError(
+                f"Tried to realloc to current buffer size ({self.n_allocated_edges})."
+            )
 
         prev_buffer_size = len(self._edges_buffer)
 
@@ -516,7 +562,7 @@ class BaseGraph:
         edges = self._validate_edges(edges)
 
         if self.n_empty_edges < len(edges):
-            self._realloc_edges_buffers(len(edges))
+            self._realloc_edges_buffers(self.n_allocated_edges + len(edges))
 
         self._add_edges(edges)
 
@@ -617,6 +663,11 @@ class BaseGraph:
             the ith node.  D is the dimensionality of `coords` when
             mode == `coords` and it's ignored when mode == `indices`.
         """
+        if mode.lower() == 'coords' and self._coords is None:
+            raise ValueError(
+                "`coords` mode only available for spatial graphs."
+            )
+
         flat_edges = self._iterate_edges(
             node_world_indices, node2edges, iterate_edges_func
         )

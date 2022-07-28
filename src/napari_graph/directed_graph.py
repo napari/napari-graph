@@ -332,28 +332,31 @@ class DirectedGraph(BaseGraph):
 
     Parameters
     ----------
-    n_nodes : int
-        Number of nodes to allocate to graph.
-    ndim : int
+    edges : ArrayLike
+        Nx2 array of pair of nodes (edges).
+    coords :
+        Optional array of spatial coordinates of nodes.
+    dim : int
         Number of spatial dimensions of graph.
+    n_nodes : int
+        Optional number of nodes to pre-allocate in the graph.
     n_edges : int
-        Number of edges of the graph.
+        Optional number of edges to pre-allocate in the graph.
     """
 
     _EDGE_DUPLICATION = 1
     _EDGE_SIZE = _DI_EDGE_SIZE
     _LL_EDGE_POS = _LL_DI_EDGE_POS
 
-    def __init__(self, n_nodes: int, ndim: int, n_edges: int):
-        super().__init__(n_nodes, ndim, n_edges)
+    def _init_buffers(self, n_nodes: int, n_edges: int) -> None:
+        super()._init_buffers(n_nodes, n_edges)
         self._node2tgt_edges = np.full(
             n_nodes, fill_value=_EDGE_EMPTY_PTR, dtype=int
         )
 
-    def init_nodes_from_dataframe(
+    def init_data_from_dataframe(
         self,
-        nodes_df: pd.DataFrame,
-        coordinates_columns: List[str],
+        coords: Union[pd.DataFrame, ArrayLike],
     ) -> None:
         """Initialize graph nodes from dataframe.
 
@@ -361,13 +364,11 @@ class DirectedGraph(BaseGraph):
 
         Parameters
         ----------
-        nodes_df : pd.DataFrame
-            Data frame containing node's features and coordinates.
-        coordinates_columns : List[str]
-            Names of coordinate columns.
+        coords : pd.DataFrame
+            Data frame containing nodes coordinates.
         """
-        super().init_nodes_from_dataframe(nodes_df, coordinates_columns)
-        n_nodes = len(nodes_df)
+        super().init_data_from_dataframe(coords)
+        n_nodes = len(coords)
         if len(self._node2tgt_edges) < n_nodes:
             self._node2tgt_edges = np.full(
                 n_nodes, fill_value=_EDGE_EMPTY_PTR, dtype=int

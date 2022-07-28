@@ -26,8 +26,8 @@ def make_graph_dataframe(
 
 
 @pytest.mark.parametrize("n_prealloc_edges", [0, 2, 5])
-def test_undirected_init_from_dataframe(n_prealloc_edges: int) -> None:
-    nodes_df = pd.DataFrame(
+def test_undirected_edge_addition(n_prealloc_edges: int) -> None:
+    coords = pd.DataFrame(
         [
             [0, 2.5],
             [4, 2.5],
@@ -41,17 +41,13 @@ def test_undirected_init_from_dataframe(n_prealloc_edges: int) -> None:
     edges = [[0, 1], [1, 2], [2, 3], [3, 4], [0, 4]]
 
     graph = UndirectedGraph(
-        n_nodes=nodes_df.shape[0],
-        ndim=nodes_df.shape[1],
+        edges=[],
+        coords=coords,
         n_edges=n_prealloc_edges,
     )
-
-    graph.init_nodes_from_dataframe(nodes_df, ["y", "x"])
     graph.add_edges(edges)
 
-    for node_idx, node_edges in zip(
-        nodes_df.index, graph.edges(nodes_df.index)
-    ):
+    for node_idx, node_edges in zip(coords.index, graph.edges(coords.index)):
         # checking if two edges per node and connecting only two nodes
         assert node_edges.shape == (2, 2)
 
@@ -64,8 +60,8 @@ def test_undirected_init_from_dataframe(n_prealloc_edges: int) -> None:
 
 
 @pytest.mark.parametrize("n_prealloc_edges", [0, 2, 5])
-def test_directed_init_from_dataframe(n_prealloc_edges: int) -> None:
-    nodes_df = pd.DataFrame(
+def test_directed_edge_addition(n_prealloc_edges: int) -> None:
+    coords = pd.DataFrame(
         [
             [0, 2.5],
             [4, 2.5],
@@ -79,16 +75,14 @@ def test_directed_init_from_dataframe(n_prealloc_edges: int) -> None:
     edges = np.asarray([[0, 1], [1, 2], [2, 3], [3, 4], [4, 0]])
 
     graph = DirectedGraph(
-        n_nodes=nodes_df.shape[0],
-        ndim=nodes_df.shape[1],
+        edges=[],
+        coords=coords,
         n_edges=n_prealloc_edges,
     )
-
-    graph.init_nodes_from_dataframe(nodes_df, ["y", "x"])
     graph.add_edges(edges)
 
-    source_edges = np.asarray(graph.source_edges(nodes_df.index))
-    target_edges = np.asarray(graph.target_edges(np.roll(nodes_df.index, -1)))
+    source_edges = np.asarray(graph.source_edges(coords.index))
+    target_edges = np.asarray(graph.target_edges(np.roll(coords.index, -1)))
     assert np.all(source_edges == edges[:, np.newaxis, :])
     assert np.all(target_edges == edges[:, np.newaxis, :])
 
@@ -101,7 +95,7 @@ def test_node_addition(n_prealloc_nodes: int) -> None:
     indices = np.random.choice(range(100), size=size, replace=False)
     coords = np.random.randn(size, ndim)
 
-    graph = DirectedGraph(n_prealloc_nodes, ndim, 0)
+    graph = DirectedGraph(edges=[], dim=ndim, n_nodes=n_prealloc_nodes)
     for i in range(size):
         graph.add_node(indices[i], coords[i])
         assert len(graph) == i + 1
@@ -118,7 +112,7 @@ class TestGraph:
     __test__ = False  # ignored for testing
 
     def setup_method(self, method: Callable) -> None:
-        self.nodes_df = pd.DataFrame(
+        self.coords = pd.DataFrame(
             [
                 [0, 2.5],
                 [4, 2.5],
@@ -129,15 +123,14 @@ class TestGraph:
             columns=["y", "x"],
         )
 
-        self.edges = np.asarray([[0, 1], [1, 2], [2, 3], [3, 4], [4, 0]])
+        self.edges = np.asarray(
+            [[0, 1], [1, 2], [2, 3], [3, 4], [4, 0]], dtype=int
+        )
 
         self.graph = self._GRAPH_CLASS(
-            n_nodes=self.nodes_df.shape[0],
-            ndim=self.nodes_df.shape[1],
-            n_edges=len(self.edges),
+            edges=self.edges,
+            coords=self.coords,
         )
-        self.graph.init_nodes_from_dataframe(self.nodes_df, ["y", "x"])
-        self.graph.add_edges(self.edges)
 
     @staticmethod
     def contains(edge: ArrayLike, edges: List[ArrayLike]) -> bool:
@@ -146,10 +139,10 @@ class TestGraph:
         )
 
     def teardown_method(self, method: Callable) -> None:
-        self.edges, self.nodes_df, self.graph = None, None, None
+        self.edges, self.coords, self.graph = None, None, None
 
     def test_edge_buffers(self) -> None:
-        # testing non-trivial case when a node already removed
+        # testing buffer correctness on a non-trivial case when a node was removed
         node_id = 3
         self.graph.remove_node(node_id)
 
@@ -204,7 +197,7 @@ class TestDirectedGraph(TestGraph):
             assert len(self.graph) == original_size - i - 1
 
     def test_edge_coordinates(self) -> None:
-        coords = self.nodes_df.values[self.edges]
+        coords = self.coords.values[self.edges]
 
         source_edge_coords = np.concatenate(
             self.graph.source_edges(mode='coords'), axis=0
@@ -261,7 +254,7 @@ class TestUndirectedGraph(TestGraph):
         for node, coords in zip(self.graph.nodes(), edge_coords):
             for i, edge in enumerate(self.graph.edges(node)):
                 assert np.allclose(
-                    self.nodes_df.loc[edge, ["y", "x"]].values, coords[i]
+                    self.coords.loc[edge, ["y", "x"]].values, coords[i]
                 )
 
     def assert_empty_linked_list_pairs_are_neighbors(self) -> None:
@@ -284,29 +277,22 @@ def test_benchmark_construction_speed() -> None:
 
     import networkx as nx
 
-    nodes_df, edges = make_graph_dataframe(50000, 0.001)
+    coords, edges = make_graph_dataframe(50000, 0.001)
 
     print('# edges', len(edges))
 
     start = default_timer()
     graph = UndirectedGraph(
-        n_nodes=nodes_df.shape[0], ndim=nodes_df.shape[1], n_edges=len(edges)
+        edges=edges,
+        coords=coords,
     )
-    graph.init_nodes_from_dataframe(nodes_df, ["z", "y", "x"])
 
-    alloc_time = default_timer()
-    print('our alloc time', alloc_time - start)
-
-    graph.add_edges(edges)
-    end = default_timer()
-
-    print('our add edge time', end - alloc_time)
-    print('our total time', end - start)
+    print('our init time', default_timer() - start)
 
     start = default_timer()
 
     graph = nx.Graph()
-    graph.add_nodes_from(nodes_df.to_dict('index').items())
+    graph.add_nodes_from(coords.to_dict('index').items())
     graph.add_edges_from(edges)
 
     print('networkx init time', default_timer() - start)
