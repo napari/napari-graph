@@ -394,6 +394,18 @@ class DirectedGraph(BaseGraph):
             self._node2tgt_edges,
         )
 
+    def edges(
+        self, nodes: Optional[ArrayLike] = None, mode: str = 'indices'
+    ) -> Union[List[np.ndarray], np.ndarray]:
+        """`source_edges` alias"""
+        return self.target_edges(nodes, mode)
+
+    def out_edges(
+        self, nodes: Optional[ArrayLike] = None, mode: str = 'indices'
+    ) -> Union[List[np.ndarray], np.ndarray]:
+        """`source_edges` alias"""
+        return self.source_edges(nodes, mode)
+
     def source_edges(
         self, nodes: Optional[ArrayLike] = None, mode: str = 'indices'
     ) -> Union[List[np.ndarray], np.ndarray]:
@@ -423,6 +435,12 @@ class DirectedGraph(BaseGraph):
             iterate_edges_func=_iterate_directed_source_edges,
             mode=mode,
         )
+
+    def in_edges(
+        self, nodes: Optional[ArrayLike] = None, mode: str = 'indices'
+    ) -> Union[List[np.ndarray], np.ndarray]:
+        """`target_edges` alias"""
+        return self.target_edges(nodes, mode)
 
     def target_edges(
         self, nodes: Optional[ArrayLike] = None, mode: str = 'indices'
