@@ -750,4 +750,5 @@ class BaseGraph:
         return indices, edges
 
     def __len__(self) -> int:
+        """Number of nodes in use."""
         return self.n_nodes
