@@ -163,7 +163,7 @@ class BaseGraph:
         Nx2 array of pair of nodes (edges).
     coords :
         Optional array of spatial coordinates of nodes.
-    dim : int
+    ndim : int
         Number of spatial dimensions of graph.
     n_nodes : int
         Optional number of nodes to pre-allocate in the graph.
@@ -186,7 +186,7 @@ class BaseGraph:
         self,
         edges: ArrayLike = (),
         coords: Optional[Union[pd.DataFrame, ArrayLike]] = None,
-        dim: Optional[int] = None,
+        ndim: Optional[int] = None,
         n_nodes: Optional[int] = None,
         n_edges: Optional[int] = None,
     ):
@@ -203,15 +203,15 @@ class BaseGraph:
         # validating n_nodes and coords
         self._coords = None
         if coords is not None:
-            if dim is not None:
+            if ndim is not None:
                 raise ValueError(
-                    "`dim` and `coords` cannot be supplied at the same time."
+                    "`ndim` and `coords` cannot be supplied at the same time."
                 )
 
             if not isinstance(coords, pd.DataFrame):
                 coords = np.asarray(coords)
 
-            dim = coords.shape[1]
+            ndim = coords.shape[1]
 
             if n_nodes is None:
                 n_nodes = len(coords)
@@ -224,9 +224,9 @@ class BaseGraph:
         elif n_nodes is None:
             n_nodes = 0
 
-        # allocates coords if dim was provided
-        if dim is not None:
-            self._coords = np.empty((n_nodes, dim), dtype=np.float32)
+        # allocates coords if ndim was provided
+        if ndim is not None:
+            self._coords = np.empty((n_nodes, ndim), dtype=np.float32)
 
         self._init_buffers(n_nodes=n_nodes, n_edges=n_edges)
 
@@ -684,11 +684,11 @@ class BaseGraph:
                 for e in flat_edges
             ]
         elif mode.lower() == 'coords':
-            dim = self._coords.shape[1]
+            ndim = self._coords.shape[1]
             edges_data = [
-                self._coords[e].reshape(-1, 2, dim)
+                self._coords[e].reshape(-1, 2, ndim)
                 if len(e) > 0
-                else np.empty((0, 2, dim))
+                else np.empty((0, 2, ndim))
                 for e in flat_edges
             ]
         # NOTE: here `mode` could also query the edges features.
