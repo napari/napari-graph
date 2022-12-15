@@ -184,7 +184,7 @@ class BaseGraph:
 
     def __init__(
         self,
-        edges: ArrayLike = [],
+        edges: ArrayLike = (),
         coords: Optional[Union[pd.DataFrame, ArrayLike]] = None,
         dim: Optional[int] = None,
         n_nodes: Optional[int] = None,
