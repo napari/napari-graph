@@ -95,7 +95,7 @@ def test_node_addition(n_prealloc_nodes: int) -> None:
     indices = np.random.choice(range(100), size=size, replace=False)
     coords = np.random.randn(size, ndim)
 
-    graph = DirectedGraph(edges=[], dim=ndim, n_nodes=n_prealloc_nodes)
+    graph = DirectedGraph(edges=[], ndim=ndim, n_nodes=n_prealloc_nodes)
     for i in range(size):
         graph.add_node(indices[i], coords[i])
         assert len(graph) == i + 1
