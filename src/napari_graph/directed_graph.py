@@ -354,24 +354,24 @@ class DirectedGraph(BaseGraph):
             n_nodes, fill_value=_EDGE_EMPTY_PTR, dtype=int
         )
 
-    def init_data_from_dataframe(
+    def init_nodes(
         self,
         coords: Union[pd.DataFrame, ArrayLike],
     ) -> None:
-        """Initialize graph nodes from dataframe.
+        """Initialize graph nodes from coordinates data.
 
-        Graph nodes will be indexed by dataframe indices.
+        Graph nodes will be indexed by data frame (or array) indices.
 
         Parameters
         ----------
-        coords : pd.DataFrame
-            Data frame containing nodes coordinates.
+        coords : Union[pd.DataFrame, ArrayLike],
+            2-dim array containing nodes coordinates.
         """
-        super().init_data_from_dataframe(coords)
+        super().init_nodes(coords)
         n_nodes = len(coords)
         if len(self._node2tgt_edges) < n_nodes:
             self._node2tgt_edges = np.full(
-                n_nodes, fill_value=_EDGE_EMPTY_PTR, dtype=int
+                n_nodes, fill_value=_EDGE_EMPTY_PTR, dtype=np.int64
             )
         else:
             self._node2tgt_edges.fill(_EDGE_EMPTY_PTR)
@@ -381,7 +381,9 @@ class DirectedGraph(BaseGraph):
         super()._realloc_nodes_buffers(size)
         self._node2tgt_edges = np.append(
             self._node2tgt_edges,
-            np.full(diff_size, fill_value=self._NODE_EMPTY_PTR, dtype=int),
+            np.full(
+                diff_size, fill_value=self._NODE_EMPTY_PTR, dtype=np.int64
+            ),
         )
 
     def _add_edges(self, edges: np.ndarray) -> None:

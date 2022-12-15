@@ -231,7 +231,7 @@ class BaseGraph:
         self._init_buffers(n_nodes=n_nodes, n_edges=n_edges)
 
         if coords is not None:
-            self.init_data_from_dataframe(coords)
+            self.init_nodes(coords)
 
         if len(edges) > 0:
             self.add_edges(edges)
@@ -258,25 +258,25 @@ class BaseGraph:
             self._LL_EDGE_POS : -self._EDGE_SIZE : self._EDGE_SIZE
         ] = np.arange(1, self._EDGE_DUPLICATION * n_edges)
 
-    def init_data_from_dataframe(
+    def init_nodes(
         self,
         coords: Union[pd.DataFrame, ArrayLike],
     ) -> None:
-        """Initialize graph nodes from data frame data.
+        """Initialize graph nodes from coordinates data.
 
         Graph nodes will be indexed by data frame (or array) indices.
 
         Parameters
         ----------
-        coords : pd.DataFrame
-            Data frame containing nodes coordinates.
+        coords : Union[pd.DataFrame, ArrayLike],
+            2-dim array containing nodes coordinates.
         """
         if not isinstance(coords, pd.DataFrame):
             coords = pd.DataFrame(coords)
 
-        if coords.index.dtype != np.int64:
+        if not np.can_cast(coords.index.dtype, np.int64):
             raise ValueError(
-                f"Nodes indices must be int64. Found {coords.index.dtype}."
+                f"Nodes indices must be cast safe to int64. Found {coords.index.dtype}."
             )
 
         n_nodes = len(coords)
@@ -284,17 +284,17 @@ class BaseGraph:
         if n_nodes > self._coords.shape[0]:
             self._coords = coords.to_numpy(dtype=np.float32, copy=True)
             self._node2edges = np.full(
-                n_nodes, fill_value=_EDGE_EMPTY_PTR, dtype=int
+                n_nodes, fill_value=_EDGE_EMPTY_PTR, dtype=np.int64
             )
             self._buffer2world = coords.index.to_numpy(
-                dtype=np.uint64, copy=True
+                dtype=np.int64, copy=True
             )
             self._empty_nodes = []
         else:
             self._coords[:n_nodes] = coords.to_numpy(dtype=np.float32)
             self._node2edges.fill(_EDGE_EMPTY_PTR)
             self._buffer2world[:n_nodes] = coords.index.to_numpy(
-                dtype=np.uint64
+                dtype=np.int64
             )
             self._empty_nodes = list(
                 reversed(range(n_nodes, len(self._buffer2world)))
