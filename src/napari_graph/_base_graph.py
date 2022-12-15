@@ -7,7 +7,14 @@ from numba import njit, typed
 from numba.core import types
 from numpy.typing import ArrayLike
 
+"""
+_NODE_EMPTY_PTR is used to fill the values of uninitialized/empty/removed nodes
+"""
 _NODE_EMPTY_PTR = -1
+
+"""
+_EDGE_EMPTY_PTR is used to fill the values of uninitialized/empty/removed edges
+"""
 _EDGE_EMPTY_PTR = -1
 
 
