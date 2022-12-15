@@ -282,18 +282,20 @@ class BaseGraph:
         n_nodes = len(coords)
 
         if n_nodes > self._coords.shape[0]:
-            self._coords = coords.values.astype(np.float32, copy=True)
+            self._coords = coords.to_numpy(dtype=np.float32, copy=True)
             self._node2edges = np.full(
                 n_nodes, fill_value=_EDGE_EMPTY_PTR, dtype=int
             )
-            self._buffer2world = coords.index.values.astype(
-                np.uint64, copy=True
+            self._buffer2world = coords.index.to_numpy(
+                dtype=np.uint64, copy=True
             )
             self._empty_nodes = []
         else:
-            self._coords[:n_nodes] = coords.values
+            self._coords[:n_nodes] = coords.to_numpy(dtype=np.float32)
             self._node2edges.fill(_EDGE_EMPTY_PTR)
-            self._buffer2world[:n_nodes] = coords.index.values
+            self._buffer2world[:n_nodes] = coords.index.to_numpy(
+                dtype=np.uint64
+            )
             self._empty_nodes = list(
                 reversed(range(n_nodes, len(self._buffer2world)))
             )  # reversed so we add nodes to the end of it

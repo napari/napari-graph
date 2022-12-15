@@ -197,7 +197,7 @@ class TestDirectedGraph(TestGraph):
             assert len(self.graph) == original_size - i - 1
 
     def test_edge_coordinates(self) -> None:
-        coords = self.coords.values[self.edges]
+        coords = self.coords.to_numpy()[self.edges]
 
         source_edge_coords = np.concatenate(
             self.graph.source_edges(mode='coords'), axis=0
@@ -254,7 +254,7 @@ class TestUndirectedGraph(TestGraph):
         for node, coords in zip(self.graph.nodes(), edge_coords):
             for i, edge in enumerate(self.graph.edges(node)):
                 assert np.allclose(
-                    self.coords.loc[edge, ["y", "x"]].values, coords[i]
+                    self.coords.loc[edge, ["y", "x"]].to_numpy(), coords[i]
                 )
 
     def assert_empty_linked_list_pairs_are_neighbors(self) -> None:
