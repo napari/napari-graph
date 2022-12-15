@@ -6,6 +6,7 @@ from numba import njit, typed
 from numpy.typing import ArrayLike
 
 from napari_graph._base_graph import (
+    _NODE_EMPTY_PTR,
     _EDGE_EMPTY_PTR,
     BaseGraph,
     _iterate_edges,
@@ -381,7 +382,7 @@ class DirectedGraph(BaseGraph):
         super()._realloc_nodes_buffers(size)
         self._node2tgt_edges = np.append(
             self._node2tgt_edges,
-            np.full(diff_size, fill_value=self._NODE_EMPTY_PTR, dtype=int),
+            np.full(diff_size, fill_value=_NODE_EMPTY_PTR, dtype=int),
         )
 
     def _add_edges(self, edges: np.ndarray) -> None:
