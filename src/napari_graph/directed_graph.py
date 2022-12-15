@@ -214,10 +214,11 @@ def _remove_directed_edge(
 def _remove_directed_edges(
     edges: np.ndarray,
     empty_idx: int,
+    n_edges: int,
     edges_buffer: np.ndarray,
     node2src_edges: np.ndarray,
     node2tgt_edges: np.ndarray,
-) -> int:
+) -> Tuple[int, int]:
     """Remove an array of edges from the edges buffer."""
 
     for i in range(edges.shape[0]):
@@ -229,11 +230,12 @@ def _remove_directed_edges(
             node2src_edges,
             node2tgt_edges,
         )
-    return empty_idx
+        n_edges -= 1
+    return empty_idx, n_edges
 
 
 @njit
-def _remove_unidirectional_incident_edges(
+def _remove_directed_incident_edges(
     node: int,
     empty_idx: int,
     n_edges: int,
@@ -298,7 +300,7 @@ def _remove_unidirectional_incident_edges(
         )
 
         idx = next_idx
-        n_edges = n_edges - 1
+        n_edges -= 1
     else:
         raise ValueError(
             "Infinite loop detected at directed graph node removal, edges buffer must be corrupted."
@@ -385,6 +387,17 @@ class DirectedGraph(BaseGraph):
                 diff_size, fill_value=self._NODE_EMPTY_PTR, dtype=np.int64
             ),
         )
+
+    def _add_edge(self, src_node: int, tgt_node: int) -> None:
+        self._empty_edge_idx = _add_directed_edge(
+            self._edges_buffer,
+            self._node2edges,
+            self._node2tgt_edges,
+            self._empty_edge_idx,
+            src_node,
+            tgt_node,
+        )
+        self._n_edges += 1
 
     def _add_edges(self, edges: np.ndarray) -> None:
         self._empty_edge_idx, self._n_edges = _add_directed_edges(
@@ -474,22 +487,34 @@ class DirectedGraph(BaseGraph):
             mode=mode,
         )
 
-    def _remove_edges(self, edges: np.ndarray) -> None:
-        self._empty_edge_idx = _remove_directed_edges(
-            edges,
+    def _remove_edge(self, src_node: int, tgt_node: int) -> None:
+        self._empty_edge_idx = _remove_directed_edge(
+            src_node,
+            tgt_node,
             self._empty_edge_idx,
             self._edges_buffer,
             self._node2edges,
             self._node2tgt_edges,
         )
+        self._n_edges -= 1
 
-    def _remove_node_edges(self, node_buffer_index: int) -> None:
+    def _remove_edges(self, edges: np.ndarray) -> None:
+        self._empty_edge_idx, self._n_edges = _remove_directed_edges(
+            edges,
+            self._empty_edge_idx,
+            self._n_edges,
+            self._edges_buffer,
+            self._node2edges,
+            self._node2tgt_edges,
+        )
+
+    def _remove_incident_edges(self, node_buffer_index: int) -> None:
         """Remove directed edges that contain `node` in either direction."""
         for is_target in (1, 0):
             (
                 self._empty_edge_idx,
                 self._n_edges,
-            ) = _remove_unidirectional_incident_edges(
+            ) = _remove_directed_incident_edges(
                 node_buffer_index,
                 self._empty_edge_idx,
                 self._n_edges,
