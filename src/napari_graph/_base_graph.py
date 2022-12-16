@@ -218,6 +218,18 @@ class BaseGraph:
             else:
                 n_nodes = len(coords.index)
 
+        # initialize nodes
+        if n_nodes is None:
+            n_nodes = 0
+        self._init_node_buffers(n_nodes)
+        if ndim is not None:
+            self._coords = np.empty((n_nodes, ndim), dtype=np.float32)
+        else:
+            self._coords = None
+        if coords is not None:
+            assert self._coords is not None
+            self.init_nodes(coords)
+
         # validate edges
         edges = np.asarray(edges)
         if len(edges) > 0:
@@ -238,18 +250,6 @@ class BaseGraph:
                 )
         else:
             n_edges = len(edges)
-
-        # initialize nodes
-        if n_nodes is None:
-            n_nodes = 0
-        self._init_node_buffers(n_nodes)
-        if ndim is not None:
-            self._coords = np.empty((n_nodes, ndim), dtype=np.float32)
-        else:
-            self._coords = None
-        if coords is not None:
-            assert self._coords is not None
-            self.init_nodes(coords)
 
         # initialize edges
         self._init_edge_buffers(n_edges)
