@@ -95,7 +95,7 @@ def test_node_addition(n_prealloc_nodes: int) -> None:
     indices = np.random.choice(range(100), size=size, replace=False)
     coords = np.random.randn(size, ndim)
 
-    graph = DirectedGraph(edges=[], dim=ndim, n_nodes=n_prealloc_nodes)
+    graph = DirectedGraph(edges=[], ndim=ndim, n_nodes=n_prealloc_nodes)
     for i in range(size):
         graph.add_node(indices[i], coords[i])
         assert len(graph) == i + 1
@@ -197,7 +197,7 @@ class TestDirectedGraph(TestGraph):
             assert len(self.graph) == original_size - i - 1
 
     def test_edge_coordinates(self) -> None:
-        coords = self.coords.values[self.edges]
+        coords = self.coords.to_numpy()[self.edges]
 
         source_edge_coords = np.concatenate(
             self.graph.source_edges(mode='coords'), axis=0
@@ -254,7 +254,7 @@ class TestUndirectedGraph(TestGraph):
         for node, coords in zip(self.graph.nodes(), edge_coords):
             for i, edge in enumerate(self.graph.edges(node)):
                 assert np.allclose(
-                    self.coords.loc[edge, ["y", "x"]].values, coords[i]
+                    self.coords.loc[edge, ["y", "x"]].to_numpy(), coords[i]
                 )
 
     def assert_empty_linked_list_pairs_are_neighbors(self) -> None:

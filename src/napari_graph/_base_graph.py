@@ -168,7 +168,7 @@ class BaseGraph:
         Nx2 array of pair of nodes (edges).
     coords :
         Optional array of spatial coordinates of nodes.
-    dim : int
+    ndim : int
         Number of spatial dimensions of graph.
     n_nodes : int
         Optional number of nodes to pre-allocate in the graph.
@@ -187,9 +187,9 @@ class BaseGraph:
 
     def __init__(
         self,
-        edges: ArrayLike = [],
+        edges: ArrayLike = (),
         coords: Optional[Union[pd.DataFrame, ArrayLike]] = None,
-        dim: Optional[int] = None,
+        ndim: Optional[int] = None,
         n_nodes: Optional[int] = None,
         n_edges: Optional[int] = None,
     ):
@@ -206,15 +206,15 @@ class BaseGraph:
         # validating n_nodes and coords
         self._coords = None
         if coords is not None:
-            if dim is not None:
+            if ndim is not None:
                 raise ValueError(
-                    "`dim` and `coords` cannot be supplied at the same time."
+                    "`ndim` and `coords` cannot be supplied at the same time."
                 )
 
             if not isinstance(coords, pd.DataFrame):
                 coords = np.asarray(coords)
 
-            dim = coords.shape[1]
+            ndim = coords.shape[1]
 
             if n_nodes is None:
                 n_nodes = len(coords)
@@ -227,14 +227,14 @@ class BaseGraph:
         elif n_nodes is None:
             n_nodes = 0
 
-        # allocates coords if dim was provided
-        if dim is not None:
-            self._coords = np.empty((n_nodes, dim), dtype=np.float32)
+        # allocates coords if ndim was provided
+        if ndim is not None:
+            self._coords = np.empty((n_nodes, ndim), dtype=np.float32)
 
         self._init_buffers(n_nodes=n_nodes, n_edges=n_edges)
 
         if coords is not None:
-            self.init_data_from_dataframe(coords)
+            self.init_nodes(coords)
 
         if len(edges) > 0:
             self.add_edges(edges)
@@ -261,42 +261,44 @@ class BaseGraph:
             self._LL_EDGE_POS : -self._EDGE_SIZE : self._EDGE_SIZE
         ] = np.arange(1, self._EDGE_DUPLICATION * n_edges)
 
-    def init_data_from_dataframe(
+    def init_nodes(
         self,
         coords: Union[pd.DataFrame, ArrayLike],
     ) -> None:
-        """Initialize graph nodes from data frame data.
+        """Initialize graph nodes from coordinates data.
 
         Graph nodes will be indexed by data frame (or array) indices.
 
         Parameters
         ----------
-        coords : pd.DataFrame
-            Data frame containing nodes coordinates.
+        coords : Union[pd.DataFrame, ArrayLike],
+            2-dim array containing nodes coordinates.
         """
         if not isinstance(coords, pd.DataFrame):
             coords = pd.DataFrame(coords)
 
-        if coords.index.dtype != np.int64:
+        if not np.can_cast(coords.index.dtype, np.int64):
             raise ValueError(
-                f"Nodes indices must be int64. Found {coords.index.dtype}."
+                f"Nodes indices must be cast safe to int64. Found {coords.index.dtype}."
             )
 
         n_nodes = len(coords)
 
         if n_nodes > self._coords.shape[0]:
-            self._coords = coords.values.astype(np.float32, copy=True)
+            self._coords = coords.to_numpy(dtype=np.float32, copy=True)
             self._node2edges = np.full(
-                n_nodes, fill_value=_EDGE_EMPTY_PTR, dtype=int
+                n_nodes, fill_value=_EDGE_EMPTY_PTR, dtype=np.int64
             )
-            self._buffer2world = coords.index.values.astype(
-                np.uint64, copy=True
+            self._buffer2world = coords.index.to_numpy(
+                dtype=np.int64, copy=True
             )
             self._empty_nodes = []
         else:
-            self._coords[:n_nodes] = coords.values
+            self._coords[:n_nodes] = coords.to_numpy(dtype=np.float32)
             self._node2edges.fill(_EDGE_EMPTY_PTR)
-            self._buffer2world[:n_nodes] = coords.index.values
+            self._buffer2world[:n_nodes] = coords.index.to_numpy(
+                dtype=np.int64
+            )
             self._empty_nodes = list(
                 reversed(range(n_nodes, len(self._buffer2world)))
             )  # reversed so we add nodes to the end of it
@@ -685,11 +687,11 @@ class BaseGraph:
                 for e in flat_edges
             ]
         elif mode.lower() == 'coords':
-            dim = self._coords.shape[1]
+            ndim = self._coords.shape[1]
             edges_data = [
-                self._coords[e].reshape(-1, 2, dim)
+                self._coords[e].reshape(-1, 2, ndim)
                 if len(e) > 0
-                else np.empty((0, 2, dim))
+                else np.empty((0, 2, ndim))
                 for e in flat_edges
             ]
         # NOTE: here `mode` could also query the edges features.
