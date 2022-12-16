@@ -312,6 +312,11 @@ class BaseGraph:
         return self._coords.shape[1]
 
     @property
+    def n_nodes(self) -> int:
+        """Number of nodes in use."""
+        return self.n_allocated_nodes - self.n_empty_nodes
+
+    @property
     def n_allocated_nodes(self) -> int:
         """Number of total allocated nodes."""
         return len(self._buffer2world)
@@ -320,10 +325,6 @@ class BaseGraph:
     def n_empty_nodes(self) -> int:
         """Number of nodes allocated but not used."""
         return len(self._empty_nodes)
-
-    def __len__(self) -> int:
-        """Number of nodes in use."""
-        return self.n_allocated_nodes - self.n_empty_nodes
 
     def nodes(self) -> np.ndarray:
         """Indices of graph nodes."""
@@ -752,3 +753,7 @@ class BaseGraph:
             edges = self._buffer2world[edges]
 
         return indices, edges
+
+    def __len__(self) -> int:
+        """Number of nodes in use."""
+        return self.n_nodes
