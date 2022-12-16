@@ -220,7 +220,7 @@ class BaseGraph:
 
         # initialize nodes
         if n_nodes is None:
-            n_nodes = 0
+            n_nodes = self._ALLOC_MIN
         self._init_node_buffers(n_nodes)
         if ndim is not None:
             self._coords = np.empty((n_nodes, ndim), dtype=np.float32)
