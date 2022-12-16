@@ -8,7 +8,12 @@ from numba.core import types
 from numpy.typing import ArrayLike
 
 """
-_EDGE_EMPTY_PTR is used to fill the values of uninitialized/empty/removed nodes or edges
+_NODE_EMPTY_PTR is used to fill the values of uninitialized/empty/removed nodes
+"""
+_NODE_EMPTY_PTR = -1
+
+"""
+_EDGE_EMPTY_PTR is used to fill the values of uninitialized/empty/removed edges
 """
 _EDGE_EMPTY_PTR = -1
 
@@ -171,8 +176,6 @@ class BaseGraph:
         Optional number of edges to pre-allocate in the graph.
     """
 
-    _NODE_EMPTY_PTR = -1
-
     # abstract constants
     _EDGE_DUPLICATION: int = ...
     _EDGE_SIZE: int = ...
@@ -244,7 +247,7 @@ class BaseGraph:
         )
         self._world2buffer = typed.Dict.empty(types.int64, types.int64)
         self._buffer2world = np.full(
-            n_nodes, fill_value=self._NODE_EMPTY_PTR, dtype=int
+            n_nodes, fill_value=_NODE_EMPTY_PTR, dtype=int
         )
         # edge-wise buffers
         self._empty_edge_idx = 0 if n_edges > 0 else _EDGE_EMPTY_PTR
@@ -309,6 +312,11 @@ class BaseGraph:
         return self._coords.shape[1]
 
     @property
+    def n_nodes(self) -> int:
+        """Number of nodes in use."""
+        return self.n_allocated_nodes - self.n_empty_nodes
+
+    @property
     def n_allocated_nodes(self) -> int:
         """Number of total allocated nodes."""
         return len(self._buffer2world)
@@ -318,13 +326,9 @@ class BaseGraph:
         """Number of nodes allocated but not used."""
         return len(self._empty_nodes)
 
-    def __len__(self) -> int:
-        """Number of nodes in use."""
-        return self.n_allocated_nodes - self.n_empty_nodes
-
     def nodes(self) -> np.ndarray:
         """Indices of graph nodes."""
-        return self._buffer2world[self._buffer2world != self._NODE_EMPTY_PTR]
+        return self._buffer2world[self._buffer2world != _NODE_EMPTY_PTR]
 
     def coordinates(
         self, node_indices: Optional[ArrayLike] = None
@@ -369,7 +373,7 @@ class BaseGraph:
         )
         self._buffer2world = np.append(
             self._buffer2world,
-            np.full(size_diff, fill_value=self._NODE_EMPTY_PTR, dtype=int),
+            np.full(size_diff, fill_value=_NODE_EMPTY_PTR, dtype=int),
         )
         self._empty_nodes = list(reversed(range(prev_size, size)))
 
@@ -424,7 +428,7 @@ class BaseGraph:
             index = self._buffer2world[index]
         buffer_index = self._world2buffer.pop(index)
         self._remove_incident_edges(buffer_index)
-        self._buffer2world[buffer_index] = self._NODE_EMPTY_PTR
+        self._buffer2world[buffer_index] = _NODE_EMPTY_PTR
         self._empty_nodes.append(buffer_index)
 
     @abstractmethod
@@ -766,3 +770,7 @@ class BaseGraph:
             edges = self._buffer2world[edges]
 
         return indices, edges
+
+    def __len__(self) -> int:
+        """Number of nodes in use."""
+        return self.n_nodes
