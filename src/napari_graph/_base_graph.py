@@ -193,54 +193,73 @@ class BaseGraph:
         n_nodes: Optional[int] = None,
         n_edges: Optional[int] = None,
     ):
-
-        # validating edges length
-        if n_edges is None:
-            n_edges = len(edges)
-
-        if n_edges < len(edges):
-            raise ValueError(
-                f"`n_edges` ({n_edges}) must be greater or equal than `edges` length ({len(edges)}."
-            )
-
-        # validating n_nodes and coords
-        self._coords = None
+        # validate nodes
         if coords is not None:
-            if ndim is not None:
-                raise ValueError(
-                    "`ndim` and `coords` cannot be supplied at the same time."
-                )
-
             if not isinstance(coords, pd.DataFrame):
-                coords = np.asarray(coords)
-
-            ndim = coords.shape[1]
-
-            if n_nodes is None:
-                n_nodes = len(coords)
-
-            if n_nodes < len(coords):
+                coords = pd.DataFrame(coords)
+            if coords.index.dtype != np.int64:
                 raise ValueError(
-                    f"`n_nodes` ({n_nodes}) must be greater or equal than `coords` length ({len(coords)})."
+                    f"The index of `coords` (data type: {coords.index.dtype}) must have data type int64."
                 )
 
-        elif n_nodes is None:
-            n_nodes = 0
+            # validate nodes: ndim
+            if len(coords.index) > 0:
+                if ndim is not None:
+                    if ndim != len(coords.columns):
+                        raise ValueError(
+                            f"`ndim` ({ndim}) does not match the number of columns in `coords` ({len(coords.columns)})."
+                        )
+                else:
+                    ndim = len(coords.columns)
 
-        # allocates coords if ndim was provided
+            # validate nodes: n_nodes
+            if n_nodes is not None:
+                if n_nodes < len(coords.index):
+                    raise ValueError(
+                        f"`n_nodes` ({n_nodes}) must be greater or equal than `coords` length ({len(coords.index)})."
+                    )
+            else:
+                n_nodes = len(coords.index)
+
+        # initialize nodes
+        if n_nodes is None:
+            n_nodes = self._ALLOC_MIN
+        self._init_node_buffers(n_nodes)
         if ndim is not None:
             self._coords = np.empty((n_nodes, ndim), dtype=np.float32)
-
-        self._init_buffers(n_nodes=n_nodes, n_edges=n_edges)
-
+        else:
+            self._coords = None
         if coords is not None:
+            assert self._coords is not None
             self.init_nodes(coords)
 
+        # validate edges
+        edges = np.asarray(edges)
+        if len(edges) > 0:
+            if edges.ndim != 2:
+                raise ValueError(
+                    f"`edges` ({edges.ndim} dimensions) must have 2 dimensions."
+                )
+            if edges.shape[1] != 2:
+                raise ValueError(
+                    f"`edges` (shape: {edges.shape}) must have shape E x 2."
+                )
+
+        # validate edges: n_edges
+        if n_edges is not None:
+            if n_edges < len(edges):
+                raise ValueError(
+                    f"`n_edges` ({n_edges}) must be greater or equal than `edges` length ({len(edges)}."
+                )
+        else:
+            n_edges = len(edges)
+
+        # initialize edges
+        self._init_edge_buffers(n_edges)
         if len(edges) > 0:
             self.add_edges(edges)
 
-    def _init_buffers(self, n_nodes: int, n_edges: int) -> None:
-        # node-wise buffers
+    def _init_node_buffers(self, n_nodes: int) -> None:
         self._empty_nodes: List[int] = list(reversed(range(n_nodes)))
         self._node2edges = np.full(
             n_nodes, fill_value=_EDGE_EMPTY_PTR, dtype=int
@@ -249,7 +268,8 @@ class BaseGraph:
         self._buffer2world = np.full(
             n_nodes, fill_value=_NODE_EMPTY_PTR, dtype=int
         )
-        # edge-wise buffers
+
+    def _init_edge_buffers(self, n_edges: int) -> None:
         self._empty_edge_idx = 0 if n_edges > 0 else _EDGE_EMPTY_PTR
         self._n_edges = 0
         self._edges_buffer = np.full(

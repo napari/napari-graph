@@ -351,8 +351,8 @@ class DirectedGraph(BaseGraph):
     _EDGE_SIZE = _DI_EDGE_SIZE
     _LL_EDGE_POS = _LL_DI_EDGE_POS
 
-    def _init_buffers(self, n_nodes: int, n_edges: int) -> None:
-        super()._init_buffers(n_nodes, n_edges)
+    def _init_node_buffers(self, n_nodes: int) -> None:
+        super()._init_node_buffers(n_nodes)
         self._node2tgt_edges = np.full(
             n_nodes, fill_value=_EDGE_EMPTY_PTR, dtype=int
         )
