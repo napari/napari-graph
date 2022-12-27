@@ -1,4 +1,4 @@
-from typing import Callable, List, Tuple, Type
+from typing import Callable, List, Type
 
 import numpy as np
 import pandas as pd
@@ -8,21 +8,6 @@ from numpy.typing import ArrayLike
 from napari_graph import DirectedGraph, UndirectedGraph
 from napari_graph._base_graph import _EDGE_EMPTY_PTR, BaseGraph
 from napari_graph.undirected_graph import _LL_UN_EDGE_POS, _UN_EDGE_SIZE
-
-
-def make_graph_dataframe(
-    size: int, sparsity: float
-) -> Tuple[pd.DataFrame, np.ndarray]:
-    # TODO:
-    #  - move to pytest fixture
-
-    adj_matrix = np.random.uniform(size=(size, size)) < sparsity
-    np.fill_diagonal(adj_matrix, 0)
-
-    edges = np.stack(adj_matrix.nonzero()).T
-    nodes_df = pd.DataFrame(np.random.randn(size, 3), columns=["z", "y", "x"])
-
-    return nodes_df, edges
 
 
 @pytest.mark.parametrize("n_prealloc_edges", [0, 2, 5])
@@ -110,6 +95,7 @@ def test_node_addition(n_prealloc_nodes: int) -> None:
 class TestGraph:
     _GRAPH_CLASS: Type[BaseGraph] = ...
     __test__ = False  # ignored for testing
+    _index_shift = 0  # shift used to test special indexing
 
     def setup_method(self, method: Callable) -> None:
         self.coords = pd.DataFrame(
@@ -120,11 +106,13 @@ class TestGraph:
                 [2, 3.5],
                 [3, 0],
             ],
+            index=np.arange(5) + self._index_shift,
             columns=["y", "x"],
         )
 
-        self.edges = np.asarray(
-            [[0, 1], [1, 2], [2, 3], [3, 4], [4, 0]], dtype=int
+        self.edges = (
+            np.asarray([[0, 1], [1, 2], [2, 3], [3, 4], [4, 0]], dtype=int)
+            + self._index_shift
         )
 
         self.graph = self._GRAPH_CLASS(
@@ -143,7 +131,7 @@ class TestGraph:
 
     def test_edge_buffers(self) -> None:
         # testing buffer correctness on a non-trivial case when a node was removed
-        node_id = 3
+        node_id = 3 + self._index_shift
         self.graph.remove_node(node_id)
 
         valid_edges = np.logical_not(np.any(self.edges == node_id, axis=1))
@@ -165,22 +153,24 @@ class TestDirectedGraph(TestGraph):
     __test__ = True
 
     def test_edge_removal(self) -> None:
-        self.graph.remove_edges([0, 1])
+        edge = np.asarray([0, 1]) + self._index_shift
+        self.graph.remove_edges(edge)
         assert self.graph.n_edges == 4
         assert self.graph.n_empty_edges == 1
-        assert not self.contains((0, 1), self.graph.source_edges())
-        assert not self.contains((1, 0), self.graph.target_edges())
+        assert not self.contains(edge, self.graph.source_edges())
+        assert not self.contains(np.flip(edge), self.graph.target_edges())
 
-        self.graph.remove_edges([[1, 2], [2, 3]])
+        edges = np.asarray([[1, 2], [2, 3]]) + self._index_shift
+        self.graph.remove_edges(edges)
         assert self.graph.n_edges == 2
         assert self.graph.n_empty_edges == 3
-        assert not self.contains((1, 2), self.graph.source_edges())
-        assert not self.contains((2, 3), self.graph.source_edges())
+        assert not self.contains(edges[0], self.graph.source_edges())
+        assert not self.contains(edges[1], self.graph.source_edges())
 
         assert self.graph.n_allocated_edges == 5
 
     def test_node_removal(self) -> None:
-        nodes = [3, 4, 1]
+        nodes = np.asarray([3, 4, 1]) + self._index_shift
         original_size = len(self.graph)
 
         for i in range(len(nodes)):
@@ -197,7 +187,8 @@ class TestDirectedGraph(TestGraph):
             assert len(self.graph) == original_size - i - 1
 
     def test_edge_coordinates(self) -> None:
-        coords = self.coords.to_numpy()[self.edges]
+        coords = self.coords.loc[self.edges.ravel()].to_numpy()
+        coords = coords.reshape(self.edges.shape + (-1,))
 
         source_edge_coords = np.concatenate(
             self.graph.source_edges(mode='coords'), axis=0
@@ -216,24 +207,26 @@ class TestUndirectedGraph(TestGraph):
     __test__ = True
 
     def test_edge_removal(self) -> None:
-        self.graph.remove_edges([0, 1])
+        edge = np.asarray([0, 1]) + self._index_shift
+        self.graph.remove_edges(edge)
         assert self.graph.n_edges == 4
         assert self.graph.n_empty_edges == 1
-        assert not self.contains((0, 1), self.graph.edges())
-        assert not self.contains((1, 0), self.graph.edges())
+        assert not self.contains(edge, self.graph.edges())
+        assert not self.contains(np.flip(edge), self.graph.edges())
 
-        self.graph.remove_edges([[1, 2], [2, 3]])
+        edges = np.asarray([[1, 2], [2, 3]]) + self._index_shift
+        self.graph.remove_edges(edges)
         assert self.graph.n_edges == 2
         assert self.graph.n_empty_edges == 3
-        assert not self.contains((1, 2), self.graph.edges())
-        assert not self.contains((2, 3), self.graph.edges())
+        assert not self.contains(edges[0], self.graph.edges())
+        assert not self.contains(edges[1], self.graph.edges())
 
         assert self.graph.n_allocated_edges == 5
 
         self.assert_empty_linked_list_pairs_are_neighbors()
 
     def test_node_removal(self) -> None:
-        nodes = [3, 4, 1]
+        nodes = np.asarray([3, 4, 1]) + self._index_shift
         original_size = len(self.graph)
 
         for i in range(len(nodes)):
@@ -269,3 +262,11 @@ class TestUndirectedGraph(TestGraph):
             empty_idx = self.graph._edges_buffer[
                 next_empty_idx * _UN_EDGE_SIZE + _LL_UN_EDGE_POS
             ]
+
+
+class TestDirectedGraphSpecialIndex(TestDirectedGraph):
+    _index_shift = 10
+
+
+class TestUndirectedGraphSpecialIndex(TestUndirectedGraph):
+    _index_shift = 10

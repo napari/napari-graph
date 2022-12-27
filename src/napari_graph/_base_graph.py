@@ -592,7 +592,7 @@ class BaseGraph:
                 self._alloc_size(self.n_edges + len(edges))
             )
 
-        self._add_edges(edges)
+        self._add_edges(self._map_world2buffer(edges))
 
     @abstractmethod
     def _remove_edges(self, edges: np.ndarray) -> None:
