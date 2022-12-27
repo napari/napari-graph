@@ -6,7 +6,7 @@ import pytest
 from numpy.typing import ArrayLike
 
 from napari_graph import DirectedGraph, UndirectedGraph
-from napari_graph._base_graph import _EDGE_EMPTY_PTR, BaseGraph
+from napari_graph.base_graph import _EDGE_EMPTY_PTR, BaseGraph
 from napari_graph.undirected_graph import _LL_UN_EDGE_POS, _UN_EDGE_SIZE
 
 
