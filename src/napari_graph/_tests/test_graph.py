@@ -47,7 +47,7 @@ def test_undirected_edge_addition(n_prealloc_edges: int) -> None:
     )
     graph.add_edges(edges)
 
-    for node_idx, node_edges in zip(coords.index, graph.edges(coords.index)):
+    for node_idx, node_edges in zip(coords.index, graph.get_edges(coords.index)):
         # checking if two edges per node and connecting only two nodes
         assert node_edges.shape == (2, 2)
 
@@ -81,8 +81,8 @@ def test_directed_edge_addition(n_prealloc_edges: int) -> None:
     )
     graph.add_edges(edges)
 
-    source_edges = np.asarray(graph.source_edges(coords.index))
-    target_edges = np.asarray(graph.target_edges(np.roll(coords.index, -1)))
+    source_edges = np.asarray(graph.get_source_edges(coords.index))
+    target_edges = np.asarray(graph.get_target_edges(np.roll(coords.index, -1)))
     assert np.all(source_edges == edges[:, np.newaxis, :])
     assert np.all(target_edges == edges[:, np.newaxis, :])
 
@@ -154,7 +154,7 @@ class TestGraph:
             self.graph._EDGE_SIZE * self.graph._EDGE_DUPLICATION
         )
 
-        indices, edges = self.graph.edges_buffers()
+        indices, edges = self.graph.get_edges_buffers()
 
         assert np.allclose(expected_indices, indices)
         assert np.allclose(expected_edges, edges)
@@ -193,7 +193,7 @@ class TestDirectedGraph(TestGraph):
             for edge in self.graph.target_edges():
                 assert node not in edge
 
-            assert node not in self.graph.nodes()
+            assert node not in self.graph.get_nodes()
             assert len(self.graph) == original_size - i - 1
 
     def test_edge_coordinates(self) -> None:
@@ -219,14 +219,14 @@ class TestUndirectedGraph(TestGraph):
         self.graph.remove_edges([0, 1])
         assert self.graph.n_edges == 4
         assert self.graph.n_empty_edges == 1
-        assert not self.contains((0, 1), self.graph.edges())
-        assert not self.contains((1, 0), self.graph.edges())
+        assert not self.contains((0, 1), self.graph.get_edges())
+        assert not self.contains((1, 0), self.graph.get_edges())
 
         self.graph.remove_edges([[1, 2], [2, 3]])
         assert self.graph.n_edges == 2
         assert self.graph.n_empty_edges == 3
-        assert not self.contains((1, 2), self.graph.edges())
-        assert not self.contains((2, 3), self.graph.edges())
+        assert not self.contains((1, 2), self.graph.get_edges())
+        assert not self.contains((2, 3), self.graph.get_edges())
 
         assert self.graph.n_allocated_edges == 5
 
@@ -240,19 +240,19 @@ class TestUndirectedGraph(TestGraph):
             node = nodes[i]
             self.graph.remove_node(node)
 
-            for edge in self.graph.edges():
+            for edge in self.graph.get_edges():
                 assert node not in edge
 
-            assert node not in self.graph.nodes()
+            assert node not in self.graph.get_nodes()
             assert len(self.graph) == original_size - i - 1
 
         self.assert_empty_linked_list_pairs_are_neighbors()
 
     def test_edge_coordinates(self) -> None:
-        edge_coords = self.graph.edges(mode='coords')
+        edge_coords = self.graph.get_edges(mode='coords')
 
-        for node, coords in zip(self.graph.nodes(), edge_coords):
-            for i, edge in enumerate(self.graph.edges(node)):
+        for node, coords in zip(self.graph.get_nodes(), edge_coords):
+            for i, edge in enumerate(self.graph.get_edges(node)):
                 assert np.allclose(
                     self.coords.loc[edge, ["y", "x"]].to_numpy(), coords[i]
                 )

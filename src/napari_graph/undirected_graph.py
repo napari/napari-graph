@@ -294,7 +294,7 @@ class UndirectedGraph(BaseGraph):
             self._node2edges,
         )
 
-    def edges(
+    def get_edges(
         self, nodes: Optional[ArrayLike] = None, mode: str = 'indices'
     ) -> Union[List[np.ndarray], np.ndarray]:
         """Return the edges data of the given nodes.
