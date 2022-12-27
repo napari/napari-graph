@@ -82,7 +82,7 @@ def test_node_addition(n_prealloc_nodes: int) -> None:
 
     graph = DirectedGraph(edges=[], ndim=ndim, n_nodes=n_prealloc_nodes)
     for i in range(size):
-        graph.add_node(indices[i], coords[i])
+        graph.add_nodes(indices[i], coords[i])
         assert len(graph) == i + 1
 
     np.testing.assert_allclose(graph._coords[: len(graph)], coords)
@@ -262,6 +262,27 @@ class TestUndirectedGraph(TestGraph):
             empty_idx = self.graph._edges_buffer[
                 next_empty_idx * _UN_EDGE_SIZE + _LL_UN_EDGE_POS
             ]
+
+
+class NonSpatialMixin:
+    def setup_method(self, method: Callable) -> None:
+        self.edges = (
+            np.asarray([[0, 1], [1, 2], [2, 3], [3, 4], [4, 0]], dtype=int)
+            + self._index_shift
+        )
+
+        self.graph = self._GRAPH_CLASS(edges=self.edges)
+
+    def test_edge_coordinates(self) -> None:
+        pytest.skip("Non-spatial graph has no coordinates.")
+
+
+class TestNonSpatialDirectedGraph(NonSpatialMixin, TestDirectedGraph):
+    pass
+
+
+class TestNonSpatialUnirectedGraph(NonSpatialMixin, TestUndirectedGraph):
+    pass
 
 
 class TestDirectedGraphSpecialIndex(TestDirectedGraph):

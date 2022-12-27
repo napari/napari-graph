@@ -138,14 +138,14 @@ def _iterate_edges(
 
 
 @njit
-def _create_world2buffer_map(world_idx: np.ndarray) -> typed.Dict:
-    """Fills world indices to buffer indices mapping."""
-    world2buffer = typed.Dict.empty(types.int64, types.int64)
-
-    for i in range(world_idx.shape[0]):
-        world2buffer[world_idx[i]] = i
-
-    return world2buffer
+def _insert_world2buffer(
+    world2buffer: typed.Dict,
+    world_idx: np.ndarray,
+    buffer_idx: np.ndarray,
+) -> None:
+    """Inserts pairs of `world_idx` and `buffer_idx` to `world2buffer` mapping."""
+    for w, b in zip(world_idx, buffer_idx):
+        world2buffer[w] = b
 
 
 @njit
@@ -225,13 +225,15 @@ class BaseGraph:
         if n_nodes is None:
             n_nodes = self._ALLOC_MIN
         self._init_node_buffers(n_nodes)
+
         if ndim is not None:
             self._coords = np.empty((n_nodes, ndim), dtype=np.float32)
         else:
             self._coords = None
+
         if coords is not None:
             assert self._coords is not None
-            self.init_nodes(coords)
+            self.add_nodes(coords.index, coords)
 
         # validate edges
         edges = np.asarray(edges)
@@ -244,6 +246,9 @@ class BaseGraph:
                 raise ValueError(
                     f"`edges` (shape: {edges.shape}) must have shape E x 2."
                 )
+
+            if self._coords is None:
+                self.add_nodes(np.unique(edges))
 
         # validate edges: n_edges
         if n_edges is not None:
@@ -280,52 +285,6 @@ class BaseGraph:
         self._edges_buffer[
             self._LL_EDGE_POS : -self._EDGE_SIZE : self._EDGE_SIZE
         ] = np.arange(1, self._EDGE_DUPLICATION * n_edges)
-
-    def init_nodes(
-        self,
-        coords: Union[pd.DataFrame, ArrayLike],
-    ) -> None:
-        """Initialize graph nodes from coordinates data.
-
-        Graph nodes will be indexed by data frame (or array) indices.
-
-        Parameters
-        ----------
-        coords : Union[pd.DataFrame, ArrayLike],
-            2-dim array containing nodes coordinates.
-        """
-        if not isinstance(coords, pd.DataFrame):
-            coords = pd.DataFrame(coords)
-
-        if not np.can_cast(coords.index.dtype, np.int64):
-            raise ValueError(
-                f"Nodes indices must be cast safe to int64. Found {coords.index.dtype}."
-            )
-
-        n_nodes = len(coords)
-
-        if n_nodes > self._coords.shape[0]:
-            self._coords = coords.to_numpy(dtype=np.float32, copy=True)
-            self._node2edges = np.full(
-                n_nodes, fill_value=_EDGE_EMPTY_PTR, dtype=np.int64
-            )
-            self._buffer2world = coords.index.to_numpy(
-                dtype=np.int64, copy=True
-            )
-            self._empty_nodes = []
-        else:
-            self._coords[:n_nodes] = coords.to_numpy(dtype=np.float32)
-            self._node2edges.fill(_EDGE_EMPTY_PTR)
-            self._buffer2world[:n_nodes] = coords.index.to_numpy(
-                dtype=np.int64
-            )
-            self._empty_nodes = list(
-                reversed(range(n_nodes, len(self._buffer2world)))
-            )  # reversed so we add nodes to the end of it
-
-        self._world2buffer = _create_world2buffer_map(
-            self._buffer2world[:n_nodes]
-        )
 
     @property
     def ndim(self) -> int:
@@ -397,9 +356,9 @@ class BaseGraph:
         )
         self._empty_nodes = list(reversed(range(prev_size, size)))
 
-    def add_node(
+    def add_nodes(
         self,
-        index: int,
+        indices: ArrayLike,
         coords: Optional[ArrayLike] = None,
     ) -> None:
         """Adds node to graph.
@@ -411,6 +370,12 @@ class BaseGraph:
         coords : np.ndarray
             Node coordinates, optional for non-spatial graph.
         """
+        indices = np.atleast_1d(indices)
+        if indices.ndim > 1:
+            raise ValueError(
+                f"`indices` must be 1-dimensional. Found {indices.ndim}."
+            )
+
         if (self._coords is None) != (coords is None):
             if coords is None:
                 raise ValueError(
@@ -421,15 +386,21 @@ class BaseGraph:
                     "`coords` cannot be provided for non spatial graphs."
                 )
 
-        if self.n_empty_nodes == 0:
+        if self.n_empty_nodes < len(indices):
             self._realloc_nodes_buffers(
-                self._alloc_size(self.n_allocated_nodes)
+                self._alloc_size(self.n_nodes + len(indices))
             )
 
-        buffer_index = self._empty_nodes.pop()
-        self._coords[buffer_index, :] = coords
-        self._world2buffer[index] = buffer_index
-        self._buffer2world[buffer_index] = index
+        # flipping since _empty_nodes is a stack
+        buffer_indices = np.flip(self._empty_nodes[-len(indices) :])
+
+        if self._coords is not None:
+            coords = np.atleast_2d(coords)
+            self._coords[buffer_indices] = coords
+
+        self._empty_nodes = self._empty_nodes[: -len(indices)]
+        _insert_world2buffer(self._world2buffer, indices, buffer_indices)
+        self._buffer2world[buffer_indices] = indices
 
     def _alloc_size(self, size: int) -> int:
         return int(max(size * self._ALLOC_MULTIPLIER, self._ALLOC_MIN))
