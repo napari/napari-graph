@@ -399,19 +399,19 @@ class DirectedGraph(BaseGraph):
             self._node2tgt_edges,
         )
 
-    def edges(
+    def get_edges(
         self, nodes: Optional[ArrayLike] = None, mode: str = 'indices'
     ) -> Union[List[np.ndarray], np.ndarray]:
         """`source_edges` alias"""
-        return self.target_edges(nodes, mode)
+        return self.get_target_edges(nodes, mode)
 
-    def out_edges(
+    def get_out_edges(
         self, nodes: Optional[ArrayLike] = None, mode: str = 'indices'
     ) -> Union[List[np.ndarray], np.ndarray]:
         """`source_edges` alias"""
-        return self.source_edges(nodes, mode)
+        return self.get_source_edges(nodes, mode)
 
-    def source_edges(
+    def get_source_edges(
         self, nodes: Optional[ArrayLike] = None, mode: str = 'indices'
     ) -> Union[List[np.ndarray], np.ndarray]:
         """Return the source edges (outgoing) of the given nodes.
@@ -441,13 +441,13 @@ class DirectedGraph(BaseGraph):
             mode=mode,
         )
 
-    def in_edges(
+    def get_in_edges(
         self, nodes: Optional[ArrayLike] = None, mode: str = 'indices'
     ) -> Union[List[np.ndarray], np.ndarray]:
         """`target_edges` alias"""
-        return self.target_edges(nodes, mode)
+        return self.get_target_edges(nodes, mode)
 
-    def target_edges(
+    def get_target_edges(
         self, nodes: Optional[ArrayLike] = None, mode: str = 'indices'
     ) -> Union[List[np.ndarray], np.ndarray]:
         """Return the target edges (incoming) of the given nodes.
