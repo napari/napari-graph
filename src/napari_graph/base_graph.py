@@ -247,9 +247,6 @@ class BaseGraph:
                     f"`edges` (shape: {edges.shape}) must have shape E x 2."
                 )
 
-            if self._coords is None:
-                self.add_nodes(np.unique(edges))
-
         # validate edges: n_edges
         if n_edges is not None:
             if n_edges < len(edges):
@@ -262,6 +259,8 @@ class BaseGraph:
         # initialize edges
         self._init_edge_buffers(n_edges)
         if len(edges) > 0:
+            if coords is None:
+                self.add_nodes(np.unique(edges))
             self.add_edges(edges)
 
     def _init_node_buffers(self, n_nodes: int) -> None:
