@@ -157,20 +157,22 @@ def _remove_undirected_edge(
 def _remove_undirected_edges(
     edges: np.ndarray,
     empty_idx: int,
+    n_edges: int,
     edges_buffer: np.ndarray,
     node2edges: np.ndarray,
-) -> int:
+) -> Tuple[int, int]:
     """Remove an array of edges (and their duplicated siblings) from buffer."""
 
     for i in range(edges.shape[0]):
         empty_idx = _remove_undirected_edge(
             edges[i, 0], edges[i, 1], empty_idx, edges_buffer, node2edges
         )
-    return empty_idx
+        n_edges -= 1
+    return empty_idx, n_edges
 
 
 @njit
-def _remove_incident_undirected_edges(
+def _remove_undirected_incident_edges(
     node: int,
     empty_idx: int,
     n_edges: int,
@@ -247,7 +249,7 @@ def _remove_incident_undirected_edges(
         )
 
         idx = next_idx
-        n_edges = n_edges - 1
+        n_edges -= 1
     else:
         raise ValueError(
             "Infinite loop detected at undirected graph node removal, edges buffer must be corrupted."
@@ -327,15 +329,19 @@ class UndirectedGraph(BaseGraph):
         )
 
     def _remove_edges(self, edges: np.ndarray) -> None:
-        self._empty_edge_idx = _remove_undirected_edges(
-            edges, self._empty_edge_idx, self._edges_buffer, self._node2edges
+        self._empty_edge_idx, self._n_edges = _remove_undirected_edges(
+            edges,
+            self._empty_edge_idx,
+            self._n_edges,
+            self._edges_buffer,
+            self._node2edges,
         )
 
-    def _remove_node_edges(self, node_buffer_index: int) -> None:
+    def _remove_incident_edges(self, node_buffer_index: int) -> None:
         (
             self._empty_edge_idx,
             self._n_edges,
-        ) = _remove_incident_undirected_edges(
+        ) = _remove_undirected_incident_edges(
             node_buffer_index,
             self._empty_edge_idx,
             self._n_edges,

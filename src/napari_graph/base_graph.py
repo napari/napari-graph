@@ -418,12 +418,12 @@ class BaseGraph:
         if is_buffer_domain:
             index = self._buffer2world[index]
         buffer_index = self._world2buffer.pop(index)
-        self._remove_node_edges(buffer_index)
+        self._remove_incident_edges(buffer_index)
         self._buffer2world[buffer_index] = _NODE_EMPTY_PTR
         self._empty_nodes.append(buffer_index)
 
     @abstractmethod
-    def _remove_node_edges(self, node_buffer_index: int) -> None:
+    def _remove_incident_edges(self, node_buffer_index: int) -> None:
         """Abstract method, removes node at given buffer index."""
         raise NotImplementedError
 
@@ -581,10 +581,6 @@ class BaseGraph:
         edges = self._validate_edges(edges)
         edges = self._map_world2buffer(edges)
         self._remove_edges(edges)
-
-        # FIXME: this can lead to inconsistency in the count if removing edges
-        # raises an error
-        self._n_edges -= len(edges)
 
     def _map_world2buffer(self, world_idx: np.ndarray) -> np.ndarray:
         """Flatten the world indices buffer maps into buffer coordinates.
