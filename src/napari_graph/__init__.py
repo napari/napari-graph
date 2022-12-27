@@ -1,3 +1,4 @@
+from napari_graph.base_graph import BaseGraph
 from napari_graph.directed_graph import DirectedGraph
 from napari_graph.undirected_graph import UndirectedGraph
 
@@ -6,4 +7,4 @@ try:
 except ImportError:
     __version__ = "not-installed"
 
-__all__ = ["DirectedGraph", "UndirectedGraph"]
+__all__ = ["BaseGraph", "DirectedGraph", "UndirectedGraph"]

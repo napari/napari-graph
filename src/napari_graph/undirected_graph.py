@@ -4,7 +4,7 @@ import numpy as np
 from numba import njit, typed
 from numpy.typing import ArrayLike
 
-from napari_graph._base_graph import (
+from napari_graph.base_graph import (
     _EDGE_EMPTY_PTR,
     BaseGraph,
     _iterate_edges,
