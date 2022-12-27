@@ -547,18 +547,6 @@ class BaseGraph:
         return edges
 
     @abstractmethod
-    def _add_edge(self, src_node: int, tgt_node: int) -> None:
-        raise NotImplementedError
-
-    def add_edge(self, src_node: int, tgt_node: int) -> None:
-        if self.n_empty_edges < 1:
-            self._realloc_edges_buffers(
-                self._alloc_size(self.n_edges + 1)
-            )
-        
-        self._add_edge(src_node, tgt_node)
-
-    @abstractmethod
     def _add_edges(self, edges: np.ndarray) -> None:
         """Abstract method.
 
@@ -585,15 +573,6 @@ class BaseGraph:
             )
 
         self._add_edges(edges)
-
-    @abstractmethod
-    def _remove_edge(self, src_node: int, tgt_node: int) -> None:
-        raise NotImplementedError
-
-    def remove_edge(self, src_node: int, tgt_node: int) -> None:
-        src_node = self._world2buffer[src_node]
-        tgt_node = self._world2buffer[tgt_node]
-        self._remove_edge(src_node, tgt_node)
 
     @abstractmethod
     def _remove_edges(self, edges: np.ndarray) -> None:

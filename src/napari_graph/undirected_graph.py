@@ -285,16 +285,6 @@ class UndirectedGraph(BaseGraph):
     _EDGE_SIZE = _UN_EDGE_SIZE
     _LL_EDGE_POS = _LL_UN_EDGE_POS
 
-    def _add_edge(self, src_node: int, tgt_node: int) -> None:
-        self._empty_edge_idx = _add_undirected_edge(
-            self._edges_buffer,
-            self._node2edges,
-            self._empty_edge_idx,
-            src_node,
-            tgt_node,
-        )
-        self._n_edges += 1
-
     def _add_edges(self, edges: np.ndarray) -> None:
         self._empty_edge_idx, self._n_edges = _add_undirected_edges(
             self._edges_buffer,
@@ -337,16 +327,6 @@ class UndirectedGraph(BaseGraph):
             iterate_edges_func=_iterate_undirected_edges,
             mode=mode,
         )
-
-    def _remove_edge(self, src_node: int, tgt_node: int) -> int:
-        self._empty_edge_idx = _remove_undirected_edge(
-            src_node,
-            tgt_node,
-            self._empty_edge_idx,
-            self._edges_buffer,
-            self._node2edges,
-        )
-        self._n_edges -= 1
 
     def _remove_edges(self, edges: np.ndarray) -> None:
         self._empty_edge_idx, self._n_edges = _remove_undirected_edges(
