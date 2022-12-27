@@ -304,11 +304,11 @@ class BaseGraph:
         """Number of nodes allocated but not used."""
         return len(self._empty_nodes)
 
-    def nodes(self) -> np.ndarray:
+    def get_nodes(self) -> np.ndarray:
         """Indices of graph nodes."""
         return self._buffer2world[self._buffer2world != _NODE_EMPTY_PTR]
 
-    def coordinates(
+    def get_coordinates(
         self, node_indices: Optional[ArrayLike] = None
     ) -> np.ndarray:
         """Coordinates of the given nodes.
@@ -387,7 +387,7 @@ class BaseGraph:
 
         if self.n_empty_nodes < len(indices):
             self._realloc_nodes_buffers(
-                self._alloc_size(self.n_nodes + len(indices))
+                self._get_alloc_size(self.n_nodes + len(indices))
             )
 
         # flipping since _empty_nodes is a stack
@@ -401,7 +401,7 @@ class BaseGraph:
         _insert_world2buffer(self._world2buffer, indices, buffer_indices)
         self._buffer2world[buffer_indices] = indices
 
-    def _alloc_size(self, size: int) -> int:
+    def _get_alloc_size(self, size: int) -> int:
         return int(max(size * self._ALLOC_MULTIPLIER, self._ALLOC_MIN))
 
     def remove_node(self, index: int, is_buffer_domain: bool = False) -> None:
@@ -498,7 +498,7 @@ class BaseGraph:
 
         # NOTE: maybe the nodes could be mappend inside this function
         if node_indices is None:
-            return self.nodes()
+            return self.get_nodes()
 
         node_indices = np.atleast_1d(node_indices)
 
@@ -559,7 +559,7 @@ class BaseGraph:
 
         if self.n_empty_edges < len(edges):
             self._realloc_edges_buffers(
-                self._alloc_size(self.n_edges + len(edges))
+                self._get_alloc_size(self.n_edges + len(edges))
             )
 
         self._add_edges(self._map_world2buffer(edges))
@@ -696,12 +696,12 @@ class BaseGraph:
             return edges_data
 
     @abstractmethod
-    def edges(
+    def get_edges(
         self, nodes: Optional[ArrayLike] = None, mode: str = 'indices'
     ) -> Union[List[np.ndarray], np.ndarray]:
         raise NotImplementedError
 
-    def edges_buffers(
+    def get_edges_buffers(
         self, is_buffer_domain: bool = False
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Return valid edges in buffer or world domain.
