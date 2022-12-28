@@ -47,7 +47,9 @@ def test_undirected_edge_addition(n_prealloc_edges: int) -> None:
     )
     graph.add_edges(edges)
 
-    for node_idx, node_edges in zip(coords.index, graph.get_edges(coords.index)):
+    for node_idx, node_edges in zip(
+        coords.index, graph.get_edges(coords.index)
+    ):
         # checking if two edges per node and connecting only two nodes
         assert node_edges.shape == (2, 2)
 
@@ -81,7 +83,9 @@ def test_directed_edge_addition(n_prealloc_edges: int) -> None:
     graph.add_edges(edges)
 
     source_edges = np.asarray(graph.get_source_edges(coords.index))
-    target_edges = np.asarray(graph.get_target_edges(np.roll(coords.index, -1)))
+    target_edges = np.asarray(
+        graph.get_target_edges(np.roll(coords.index, -1))
+    )
     assert np.all(source_edges == edges[:, np.newaxis, :])
     assert np.all(target_edges == edges[:, np.newaxis, :])
 
@@ -175,14 +179,14 @@ class TestDirectedGraph(TestGraph):
         self.graph.remove_edges([0, 1])
         assert self.graph.n_edges == 4
         assert self.graph.n_empty_edges == 1
-        assert not self.contains((0, 1), self.graph.source_edges())
-        assert not self.contains((1, 0), self.graph.target_edges())
+        assert not self.contains((0, 1), self.graph.get_source_edges())
+        assert not self.contains((1, 0), self.graph.get_target_edges())
 
         self.graph.remove_edges([[1, 2], [2, 3]])
         assert self.graph.n_edges == 2
         assert self.graph.n_empty_edges == 3
-        assert not self.contains((1, 2), self.graph.source_edges())
-        assert not self.contains((2, 3), self.graph.source_edges())
+        assert not self.contains((1, 2), self.graph.get_source_edges())
+        assert not self.contains((2, 3), self.graph.get_source_edges())
 
         assert self.graph.n_allocated_edges == 5
 
@@ -194,10 +198,10 @@ class TestDirectedGraph(TestGraph):
             node = nodes[i]
             self.graph.remove_node(node)
 
-            for edge in self.graph.source_edges():
+            for edge in self.graph.get_source_edges():
                 assert node not in edge
 
-            for edge in self.graph.target_edges():
+            for edge in self.graph.get_target_edges():
                 assert node not in edge
 
             assert node not in self.graph.get_nodes()
@@ -207,12 +211,12 @@ class TestDirectedGraph(TestGraph):
         coords = self.coords.to_numpy()[self.edges]
 
         source_edge_coords = np.concatenate(
-            self.graph.source_edges(mode='coords'), axis=0
+            self.graph.get_source_edges(mode='coords'), axis=0
         )
         assert np.allclose(coords, source_edge_coords)
 
         target_edges_coords = np.concatenate(
-            self.graph.target_edges(mode='coords'), axis=0
+            self.graph.get_target_edges(mode='coords'), axis=0
         )
         rolled_coords = np.roll(coords, shift=1, axis=0)
         assert np.allclose(rolled_coords, target_edges_coords)

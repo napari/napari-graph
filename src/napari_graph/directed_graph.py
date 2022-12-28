@@ -6,8 +6,8 @@ from numba import njit, typed
 from numpy.typing import ArrayLike
 
 from napari_graph.base_graph import (
-    _NODE_EMPTY_PTR,
     _EDGE_EMPTY_PTR,
+    _NODE_EMPTY_PTR,
     BaseGraph,
     _iterate_edges,
     _remove_edge,
@@ -384,9 +384,7 @@ class DirectedGraph(BaseGraph):
         super()._realloc_nodes_buffers(size)
         self._node2tgt_edges = np.append(
             self._node2tgt_edges,
-            np.full(
-                diff_size, fill_value=_NODE_EMPTY_PTR, dtype=np.int64
-            ),
+            np.full(diff_size, fill_value=_NODE_EMPTY_PTR, dtype=np.int64),
         )
 
     def _add_edges(self, edges: np.ndarray) -> None:
@@ -405,7 +403,7 @@ class DirectedGraph(BaseGraph):
         """`source_edges` alias"""
         return self.get_target_edges(nodes, mode)
 
-    def get_out_edges(
+    def out_edges(
         self, nodes: Optional[ArrayLike] = None, mode: str = 'indices'
     ) -> Union[List[np.ndarray], np.ndarray]:
         """`source_edges` alias"""
@@ -441,7 +439,7 @@ class DirectedGraph(BaseGraph):
             mode=mode,
         )
 
-    def get_in_edges(
+    def in_edges(
         self, nodes: Optional[ArrayLike] = None, mode: str = 'indices'
     ) -> Union[List[np.ndarray], np.ndarray]:
         """`target_edges` alias"""
