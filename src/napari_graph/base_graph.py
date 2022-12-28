@@ -138,12 +138,12 @@ def _iterate_edges(
 
 
 @njit
-def _insert_world2buffer(
+def _update_world2buffer(
     world2buffer: typed.Dict,
     world_idx: np.ndarray,
     buffer_idx: np.ndarray,
 ) -> None:
-    """Inserts pairs of `world_idx` and `buffer_idx` to `world2buffer` mapping."""
+    """Updates `world_idx` (keys) and `buffer_idx` (values) to `world2buffer` mapping."""
     for w, b in zip(world_idx, buffer_idx):
         world2buffer[w] = b
 
@@ -398,7 +398,7 @@ class BaseGraph:
             self._coords[buffer_indices] = coords
 
         self._empty_nodes = self._empty_nodes[: -len(indices)]
-        _insert_world2buffer(self._world2buffer, indices, buffer_indices)
+        _update_world2buffer(self._world2buffer, indices, buffer_indices)
         self._buffer2world[buffer_indices] = indices
 
     def _get_alloc_size(self, size: int) -> int:
