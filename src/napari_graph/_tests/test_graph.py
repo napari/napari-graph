@@ -1,4 +1,5 @@
-from typing import Callable, List, Tuple, Type
+from itertools import product
+from typing import Callable, List, Optional, Tuple, Type
 
 import numpy as np
 import pandas as pd
@@ -41,7 +42,6 @@ def test_undirected_edge_addition(n_prealloc_edges: int) -> None:
     edges = [[0, 1], [1, 2], [2, 3], [3, 4], [0, 4]]
 
     graph = UndirectedGraph(
-        edges=[],
         coords=coords,
         n_edges=n_prealloc_edges,
     )
@@ -75,7 +75,6 @@ def test_directed_edge_addition(n_prealloc_edges: int) -> None:
     edges = np.asarray([[0, 1], [1, 2], [2, 3], [3, 4], [4, 0]])
 
     graph = DirectedGraph(
-        edges=[],
         coords=coords,
         n_edges=n_prealloc_edges,
     )
@@ -95,7 +94,7 @@ def test_node_addition(n_prealloc_nodes: int) -> None:
     indices = np.random.choice(range(100), size=size, replace=False)
     coords = np.random.randn(size, ndim)
 
-    graph = DirectedGraph(edges=[], ndim=ndim, n_nodes=n_prealloc_nodes)
+    graph = DirectedGraph(ndim=ndim, n_nodes=n_prealloc_nodes)
     for i in range(size):
         graph.add_node(indices[i], coords[i])
         assert len(graph) == i + 1
@@ -105,6 +104,14 @@ def test_node_addition(n_prealloc_nodes: int) -> None:
     np.testing.assert_array_equal(
         graph._map_world2buffer(indices), range(size)
     )
+
+
+@pytest.mark.parametrize(
+    "graph_type,ndim",
+    product([UndirectedGraph, DirectedGraph], [None, 2, 3]),
+)
+def test_empty_graph(graph_type: Type[BaseGraph], ndim: Optional[int]) -> None:
+    _ = graph_type(ndim=ndim)
 
 
 class TestGraph:
