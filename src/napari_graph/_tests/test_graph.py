@@ -1,7 +1,5 @@
-
 from itertools import product
 from typing import Callable, List, Optional, Type
-
 
 import numpy as np
 import pandas as pd
