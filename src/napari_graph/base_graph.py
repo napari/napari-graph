@@ -197,9 +197,9 @@ class BaseGraph:
         if coords is not None:
             if not isinstance(coords, pd.DataFrame):
                 coords = pd.DataFrame(coords)
-            if coords.index.dtype != np.int64:
+            if not np.issubdtype(coords.index.dtype, np.integer):
                 raise ValueError(
-                    f"The index of `coords` (data type: {coords.index.dtype}) must have data type int64."
+                    f"The index of `coords` (data type: {coords.index.dtype}) must be an integer."
                 )
 
             # validate nodes: ndim
