@@ -743,3 +743,13 @@ class BaseGraph:
     def __len__(self) -> int:
         """Number of nodes in use."""
         return self.n_nodes
+
+    def initialized_buffer_mask(self) -> np.ndarray:
+        """Compute mask of nodes that have already been initialized.
+
+        Returns
+        -------
+        np.ndarray
+            Boolean array of valid node, it has the same length the buffer.
+        """
+        return self._buffer2world != _NODE_EMPTY_PTR
