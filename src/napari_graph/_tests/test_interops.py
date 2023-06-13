@@ -1,3 +1,5 @@
+from typing import List
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -11,7 +13,7 @@ from napari_graph import (
 )
 
 
-def _graph_list() -> list[BaseGraph]:
+def _graph_list() -> List[BaseGraph]:
 
     coords = pd.DataFrame(
         [
