@@ -753,3 +753,13 @@ class BaseGraph:
             Boolean array of valid node, it has the same length the buffer.
         """
         return self._buffer2world != _NODE_EMPTY_PTR
+
+    @property
+    def coords_buffer(self) -> np.ndarray:
+        """Returns the actual coordinates buffer. It's not a copy."""
+        if self._coords is None:
+            raise ValueError(
+                "graph does not have a `coords` attribute. "
+                "It is not a spatial graph."
+            )
+        return self._coords
