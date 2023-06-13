@@ -315,6 +315,11 @@ class BaseGraph:
 
         If none is provided it returns the coordinates of every node.
         """
+        if self._coords is None:
+            raise ValueError(
+                "`get_coordinates` is only available for spatial graphs."
+            )
+
         node_indices = self._validate_nodes(node_indices)
         node_indices = self._map_world2buffer(node_indices)
         return self._coords[node_indices]
@@ -743,3 +748,7 @@ class BaseGraph:
     def __len__(self) -> int:
         """Number of nodes in use."""
         return self.n_nodes
+
+    def is_spatial(self) -> bool:
+        """Returns wheter it's a spatial graph (has coordinates attribute)."""
+        return self._coords is not None
