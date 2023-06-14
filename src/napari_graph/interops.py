@@ -32,7 +32,7 @@ def from_networkx(graph: nx.Graph) -> BaseGraph:
     edges = np.asarray(graph.edges)
 
     if edges.ndim > 1 and edges.shape[1] > 2:
-        warnings.warn("Edges weights are not supported yet and were ignored.")
+        warnings.warn("Edge weights are not supported yet and were ignored.")
         edges = edges[:, :2]
 
     if graph.is_directed():
