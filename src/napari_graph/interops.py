@@ -10,8 +10,7 @@ from napari_graph.undirected_graph import UndirectedGraph
 
 
 def from_networkx(graph: nx.Graph) -> BaseGraph:
-    """
-    Convert a NetworkX graph into a napari-graph UndirectedGraph or DirectedGraph.
+    """Convert a NetworkX graph into a napari-graph UndirectedGraph or DirectedGraph.
 
     Parameters
     ----------
