@@ -44,8 +44,7 @@ def from_networkx(graph: nx.Graph) -> BaseGraph:
 
 
 def to_networkx(graph: BaseGraph) -> nx.Graph:
-    """
-    Convert a napari-graph UndirectedGraph or DirectedGraph into NetworkX graph.
+    """Convert a napari-graph UndirectedGraph or DirectedGraph into NetworkX graph.
 
     Parameters
     ----------
