@@ -1,5 +1,3 @@
-import warnings
-
 import networkx as nx
 import numpy as np
 import pandas as pd
@@ -30,11 +28,9 @@ def from_networkx(graph: nx.Graph) -> BaseGraph:
     else:
         coords_df = None
 
-    edges = np.asarray(graph.edges)
-
-    if edges.ndim > 1 and edges.shape[1] > 2:
-        warnings.warn("Edges weights are not supported yet and were ignored.")
-        edges = edges[:, :2]
+    edges = graph.edges
+    if len(edges) > 0:
+        edges = np.atleast_2d(edges)
 
     if graph.is_directed():
         out_graph = DirectedGraph(edges, coords_df)

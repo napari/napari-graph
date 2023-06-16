@@ -1,5 +1,6 @@
 from typing import List
 
+import networkx as nx
 import numpy as np
 import pandas as pd
 import pytest
@@ -76,6 +77,21 @@ def test_networkx_conversion(in_graph: BaseGraph) -> None:
         assert out_graph.n_edges == 0
 
     else:
-        in_graph_edges = np.lexsort(in_graph.get_edges())
-        out_graph_edges = np.lexsort(out_graph.get_edges())
+        in_graph_edges = np.concatenate(in_graph.get_edges(), axis=0).sort()
+        out_graph_edges = np.concatenate(out_graph.get_edges(), axis=0).sort()
         assert np.array_equal(in_graph_edges, out_graph_edges)
+
+
+def test_weighted_networkx_graph() -> None:
+
+    nxgraph = nx.DiGraph()
+    nxgraph.add_edge(10, 11, weight=0.1)
+    nxgraph.add_edge(11, 12, weight=0.2)
+    nxgraph.add_edge(12, 10, weight=0.3)
+
+    nxgraph_edges = np.asarray(nxgraph.edges).sort()
+
+    graph = from_networkx(nxgraph)
+    graph_edges = np.concatenate(graph.get_edges(), axis=0).sort()
+
+    assert np.array_equal(nxgraph_edges, graph_edges)
