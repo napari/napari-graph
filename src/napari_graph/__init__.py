@@ -1,6 +1,6 @@
 from napari_graph.base_graph import BaseGraph
 from napari_graph.directed_graph import DirectedGraph
-from napari_graph.interops import from_networkx, to_networkx
+from napari_graph.interops import to_napari_graph, to_networkx
 from napari_graph.undirected_graph import UndirectedGraph
 
 try:
@@ -12,6 +12,6 @@ __all__ = [
     "BaseGraph",
     "DirectedGraph",
     "UndirectedGraph",
-    "from_networkx",
+    "to_napari_graph",
     "to_networkx",
 ]

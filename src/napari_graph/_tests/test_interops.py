@@ -1,4 +1,5 @@
-from typing import List
+import itertools
+from typing import Any, Callable, List
 
 import networkx as nx
 import numpy as np
@@ -9,7 +10,7 @@ from napari_graph import (
     BaseGraph,
     DirectedGraph,
     UndirectedGraph,
-    from_networkx,
+    to_napari_graph,
     to_networkx,
 )
 
@@ -60,11 +61,15 @@ def _graph_list() -> List[BaseGraph]:
     ]
 
 
-@pytest.mark.parametrize("in_graph", _graph_list())
-def test_networkx_conversion(in_graph: BaseGraph) -> None:
+@pytest.mark.parametrize(
+    "in_graph,to_class", itertools.product(_graph_list(), [to_networkx])
+)
+def test_conversion(
+    in_graph: BaseGraph, to_class: Callable[[BaseGraph], Any]
+) -> None:
 
-    nxgraph = to_networkx(in_graph)
-    out_graph = from_networkx(nxgraph)
+    nxgraph = to_class(in_graph)
+    out_graph = to_napari_graph(nxgraph)
 
     assert np.array_equal(in_graph.get_nodes(), out_graph.get_nodes())
 
@@ -91,7 +96,7 @@ def test_weighted_networkx_graph() -> None:
 
     nxgraph_edges = np.asarray(nxgraph.edges).sort()
 
-    graph = from_networkx(nxgraph)
+    graph = to_napari_graph(nxgraph)
     graph_edges = np.concatenate(graph.get_edges(), axis=0).sort()
 
     assert np.array_equal(nxgraph_edges, graph_edges)

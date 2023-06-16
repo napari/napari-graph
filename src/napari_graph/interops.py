@@ -1,3 +1,5 @@
+from typing import Any
+
 import networkx as nx
 import numpy as np
 import pandas as pd
@@ -74,3 +76,34 @@ def to_networkx(graph: BaseGraph) -> nx.Graph:
     out_graph.add_edges_from(edges_as_tuples)
 
     return out_graph
+
+
+COMPATIPLE_CLASSES = {
+    BaseGraph: lambda x: x,
+    nx.Graph: from_networkx,
+}
+
+
+def to_napari_graph(graph: Any) -> BaseGraph:
+    """Generic function to convert "any" graph to a napari-graph.
+
+    Supported formats:
+        - NetworkX
+
+    Parameters
+    ----------
+    graph : Any
+        Any kind of graph to a napari-graph. See supported formats above.
+
+    Returns
+    -------
+    BaseGraph
+        A napari-graph graph.
+    """
+    for cls, conversion_func in COMPATIPLE_CLASSES.items():
+        if isinstance(graph, cls):
+            return conversion_func(graph)
+
+    raise NotImplementedError(
+        f"Conversion from {type(graph)} to napari-graph does not exist."
+    )
