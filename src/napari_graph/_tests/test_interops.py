@@ -100,3 +100,33 @@ def test_weighted_networkx_graph() -> None:
     graph_edges = np.concatenate(graph.get_edges(), axis=0).sort()
 
     assert np.array_equal(nxgraph_edges, graph_edges)
+
+
+def test_table_like_graphs() -> None:
+
+    coords = pd.DataFrame(
+        [
+            [0, 2.5],
+            [4, 2.5],
+            [1, 0],
+            [2, 3.5],
+            [3, 0],
+        ],
+        columns=["y", "x"],
+    )
+    coords.index = np.arange(
+        10, 5, -1
+    )  # testing index that don't start with zero
+
+    # testing pandas dataframe
+    graph = to_napari_graph(coords)
+    assert np.allclose(graph.get_coordinates(), coords)
+
+    # testing numpy array
+    graph = to_napari_graph(coords.to_numpy())
+    assert np.allclose(graph.get_coordinates(), coords.to_numpy())
+
+    # testing bad table
+    not_a_table = np.ones((5, 5, 5))
+    with pytest.raises(ValueError):
+        graph = to_napari_graph(not_a_table)
