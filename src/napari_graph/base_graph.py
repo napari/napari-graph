@@ -770,5 +770,5 @@ class BaseGraph:
         return self._coords
 
     def is_spatial(self) -> bool:
-        """Returns wheter it's a spatial graph (has coordinates attribute)."""
+        """True if self is a spatial graph (has coordinates attribute)."""
         return self._coords is not None
