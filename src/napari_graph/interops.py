@@ -76,7 +76,7 @@ def to_networkx(graph: BaseGraph) -> nx.Graph:
     return out_graph
 
 
-COMPATIPLE_CLASSES = {
+COMPATIBLE_CLASSES = {
     BaseGraph: lambda x: x,
     nx.Graph: from_networkx,
     pd.DataFrame: lambda x: UndirectedGraph(coords=x),
