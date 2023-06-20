@@ -6,12 +6,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from napari_graph import (
+from napari_graph import (  # noqa
     BaseGraph,
     DirectedGraph,
     UndirectedGraph,
     to_napari_graph,
-    to_networkx,
 )
 
 
@@ -62,7 +61,8 @@ def _graph_list() -> List[BaseGraph]:
 
 
 @pytest.mark.parametrize(
-    "in_graph,to_class", itertools.product(_graph_list(), [to_networkx])
+    "in_graph,to_class",
+    itertools.product(_graph_list(), [BaseGraph.to_networkx]),
 )
 def test_conversion(
     in_graph: BaseGraph, to_class: Callable[[BaseGraph], Any]
