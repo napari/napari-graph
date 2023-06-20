@@ -100,7 +100,7 @@ def to_napari_graph(graph: Any) -> BaseGraph:
     BaseGraph
         A napari-graph graph.
     """
-    for cls, conversion_func in COMPATIPLE_CLASSES.items():
+    for cls, conversion_func in COMPATIBLE_CLASSES.items():
         if isinstance(graph, cls):
             return conversion_func(graph)
 
