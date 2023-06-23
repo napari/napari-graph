@@ -1,5 +1,5 @@
 from itertools import product
-from typing import Callable, List, Optional, Type
+from typing import Any, Callable, List, Optional, Protocol, Type
 
 import numpy as np
 import pandas as pd
@@ -157,7 +157,7 @@ def test_empty_graph(graph_type: Type[BaseGraph], ndim: Optional[int]) -> None:
 
 
 class TestGraph:
-    _GRAPH_CLASS: Type[BaseGraph] = ...
+    _GRAPH_CLASS: Type[BaseGraph]
     __test__ = False  # ignored for testing
     _index_shift = 0  # shift used to test special indexing
 
@@ -191,7 +191,9 @@ class TestGraph:
         )
 
     def teardown_method(self, method: Callable) -> None:
-        self.edges, self.coords, self.graph = None, None, None
+        del self.edges, self.graph
+        if hasattr(self, "coords"):
+            del self.coords
 
     def test_edge_buffers(self) -> None:
         # testing buffer correctness on a non-trivial case when a node was removed
@@ -229,6 +231,7 @@ class TestGraph:
 
 
 class TestDirectedGraph(TestGraph):
+    graph: DirectedGraph  # required by typing
     _GRAPH_CLASS = DirectedGraph
     __test__ = True
 
@@ -344,7 +347,13 @@ class TestUndirectedGraph(TestGraph):
             ]
 
 
-class NonSpatialMixin:
+class NonSpatialMixin(Protocol):
+    # required by typing
+    _GRAPH_CLASS: Any
+    graph: BaseGraph
+    edges: np.ndarray
+    _index_shift: int
+
     def setup_method(self, method: Callable) -> None:
         self.edges = (
             np.asarray([[0, 1], [1, 2], [2, 3], [3, 4], [4, 0]], dtype=int)

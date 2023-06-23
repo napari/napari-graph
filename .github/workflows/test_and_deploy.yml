@@ -17,7 +17,23 @@ on:
   workflow_dispatch:
 
 jobs:
+  linting:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v2
+
+        with:
+          python-version: "3.10"
+      - name: Install tox
+        run: |
+          pip install tox
+
+      - name: Run pre-commit to check linting and typing
+        run: tox -e linting
+
   test:
+    needs: [linting]
     name: ${{ matrix.platform }} py${{ matrix.python-version }}
     runs-on: ${{ matrix.platform }}
     strategy:

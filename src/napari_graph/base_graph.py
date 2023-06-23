@@ -192,9 +192,9 @@ class BaseGraph:
     """
 
     # abstract constants
-    _EDGE_DUPLICATION: int = ...
-    _EDGE_SIZE: int = ...
-    _LL_EDGE_POS: int = ...
+    _EDGE_DUPLICATION: int
+    _EDGE_SIZE: int
+    _LL_EDGE_POS: int
 
     # allocation constants
     _ALLOC_MULTIPLIER = 1.1
@@ -859,12 +859,11 @@ class BaseGraph:
         if len(edges) > 0:
             edges = np.atleast_2d(edges)
 
-        if graph.is_directed():
-            out_graph = DirectedGraph(edges, coords_df)
-        else:
-            out_graph = UndirectedGraph(edges, coords_df)
-
-        return out_graph
+        return (
+            DirectedGraph(edges, coords_df)
+            if graph.is_directed()
+            else UndirectedGraph(edges, coords_df)
+        )
 
     def to_networkx(self) -> nx.Graph:
         """Convert it self into NetworkX graph.

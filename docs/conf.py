@@ -15,6 +15,8 @@
 # Add the local code to the Python path, so docs are generated for
 # current working copy
 
+from typing import Any, Dict
+
 import napari_graph
 
 # -- General configuration ------------------------------------------------
@@ -156,7 +158,7 @@ htmlhelp_basename = 'napari-graph-docs'
 
 # -- Options for LaTeX output ---------------------------------------------
 
-latex_elements = {
+latex_elements: Dict[str, Any] = {
     # The paper size ('letterpaper' or 'a4paper').
     #
     # 'papersize': 'letterpaper',

@@ -1,7 +1,6 @@
 from typing import List, Optional, Tuple, Union
 
 import numpy as np
-import pandas as pd
 from numba import njit, typed
 from numpy.typing import ArrayLike
 
@@ -356,28 +355,6 @@ class DirectedGraph(BaseGraph):
         self._node2tgt_edges = np.full(
             n_nodes, fill_value=_EDGE_EMPTY_PTR, dtype=int
         )
-
-    def init_nodes(
-        self,
-        coords: Union[pd.DataFrame, ArrayLike],
-    ) -> None:
-        """Initialize graph nodes from coordinates data.
-
-        Graph nodes will be indexed by data frame (or array) indices.
-
-        Parameters
-        ----------
-        coords : Union[pd.DataFrame, ArrayLike],
-            2-dim array containing nodes coordinates.
-        """
-        super().init_nodes(coords)
-        n_nodes = len(coords)
-        if len(self._node2tgt_edges) < n_nodes:
-            self._node2tgt_edges = np.full(
-                n_nodes, fill_value=_EDGE_EMPTY_PTR, dtype=np.int64
-            )
-        else:
-            self._node2tgt_edges.fill(_EDGE_EMPTY_PTR)
 
     def _realloc_nodes_buffers(self, size: int) -> None:
         diff_size = size - self.n_allocated_nodes
