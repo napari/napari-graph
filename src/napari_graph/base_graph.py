@@ -141,6 +141,18 @@ def _iterate_edges(
 
 
 @njit
+def _contains_keys(
+    map: typed.Dict,
+    keys: np.ndarray,
+) -> bool:
+    """Returns true if at least one `key` is present on `map`."""
+    for k in keys:
+        if k in map:
+            return True
+    return False
+
+
+@njit
 def _update_world2buffer(
     world2buffer: typed.Dict,
     world_idx: np.ndarray,
@@ -236,7 +248,7 @@ class BaseGraph:
 
         if coords is not None:
             assert self._coords is not None
-            self.add_nodes(coords.index, coords)
+            self.add_nodes(indices=coords.index, coords=coords)
 
         # validate edges
         edges = np.asarray(edges)
@@ -263,7 +275,7 @@ class BaseGraph:
         self._init_edge_buffers(n_edges)
         if len(edges) > 0:
             if coords is None:
-                self.add_nodes(np.unique(edges))
+                self.add_nodes(indices=np.unique(edges))
             self.add_edges(edges)
 
     def _init_node_buffers(self, n_nodes: int) -> None:
@@ -363,12 +375,25 @@ class BaseGraph:
         )
         self._empty_nodes = list(reversed(range(prev_size, size)))
 
+    def get_next_valid_indices(self, count: int) -> ArrayLike:
+        if count <= 0:
+            raise ValueError(
+                f"`count` must be a positive integer. Found {count}"
+            )
+
+        next_indices = self._buffer2world.max() + 1
+        return np.arange(next_indices, next_indices + count)
+
     def add_nodes(
         self,
-        indices: ArrayLike,
+        *,
+        indices: Optional[ArrayLike] = None,
         coords: Optional[ArrayLike] = None,
-    ) -> None:
-        """Adds node to graph.
+        count: Optional[int] = None,
+    ) -> ArrayLike:
+        """
+        Add nodes to graph, at least one of the arguments must be supplied.
+        `count` cannot be supplied with other arguments.
 
         Parameters
         ----------
@@ -376,7 +401,32 @@ class BaseGraph:
             Node index.
         coords : np.ndarray
             Node coordinates, optional for non-spatial graph.
+        count : int:
+            Number of nodes to be added.
+
+        Returns
+        -------
+        ArrayLike
+            Added nodes indices.
         """
+        if count is not None and (indices is not None or coords is not None):
+            raise ValueError(
+                "`count` cannot be supplied with `indices` and `coords`."
+            )
+
+        if count is None and indices is None and coords is None:
+            raise ValueError(
+                "One of `indices`, `coords` or `count` must be supplied."
+            )
+
+        if coords is not None:
+            coords = np.atleast_2d(coords)
+
+        if indices is None:
+            if count is None:
+                count = coords.shape[0]
+            indices = self.get_next_valid_indices(count)
+
         indices = np.atleast_1d(indices)
         if indices.ndim > 1:
             raise ValueError(
@@ -390,8 +440,13 @@ class BaseGraph:
                 )
             else:
                 raise ValueError(
-                    "`coords` cannot be provided for non spatial graphs."
+                    "`coords` cannot be provided for non-spatial graphs."
                 )
+
+        if _contains_keys(self._world2buffer, indices):
+            raise ValueError(
+                f"One of the nodes {indices} are already present in the buffer."
+            )
 
         if self.n_empty_nodes < len(indices):
             self._realloc_nodes_buffers(
@@ -401,13 +456,14 @@ class BaseGraph:
         # flipping since _empty_nodes is a stack
         buffer_indices = np.flip(self._empty_nodes[-len(indices) :])
 
-        if self._coords is not None:
-            coords = np.atleast_2d(coords)
+        if coords is not None:
             self._coords[buffer_indices] = coords
 
-        self._empty_nodes = self._empty_nodes[: -len(indices)]
         _update_world2buffer(self._world2buffer, indices, buffer_indices)
+        self._empty_nodes = self._empty_nodes[: -len(indices)]
         self._buffer2world[buffer_indices] = indices
+
+        return indices
 
     def _get_alloc_size(self, size: int) -> int:
         return int(max(size * self._ALLOC_MULTIPLIER, self._ALLOC_MIN))

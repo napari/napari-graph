@@ -76,7 +76,8 @@ def test_directed_edge_addition(n_prealloc_edges: int) -> None:
 
 
 @pytest.mark.parametrize("n_prealloc_nodes", [0, 3, 6, 12])
-def test_node_addition(n_prealloc_nodes: int) -> None:
+def test_node_addition_indices_coords(n_prealloc_nodes: int) -> None:
+    # test node addition with indices and coords and different pre-allocation size
     size = 6
     ndim = 3
 
@@ -85,7 +86,7 @@ def test_node_addition(n_prealloc_nodes: int) -> None:
 
     graph = DirectedGraph(ndim=ndim, n_nodes=n_prealloc_nodes)
     for i in range(size):
-        graph.add_nodes(indices[i], coords[i])
+        graph.add_nodes(indices=indices[i], coords=coords[i])
         assert len(graph) == i + 1
 
     np.testing.assert_allclose(graph._coords[: len(graph)], coords)
@@ -93,6 +94,53 @@ def test_node_addition(n_prealloc_nodes: int) -> None:
     np.testing.assert_array_equal(
         graph._map_world2buffer(indices), range(size)
     )
+
+
+def test_node_addition_non_spatial() -> None:
+    graph = DirectedGraph()
+
+    size = 5
+    new_indices = graph.add_nodes(count=size)
+
+    np.testing.assert_array_equal(new_indices, np.arange(size))
+
+    new_indices = graph.add_nodes(indices=[10, 11])
+    nodes = graph.get_nodes()
+
+    np.testing.assert_equal(new_indices, [10, 11])
+    np.testing.assert_array_equal(nodes[:size], np.arange(size))
+    np.testing.assert_array_equal(nodes[size:], [10, 11])
+
+    with pytest.raises(ValueError):
+        graph.add_nodes(coords=[[0, 1], [2, 3]])
+
+    graph.add_nodes(indices=15)
+    assert len(graph) == 8
+
+    with pytest.raises(ValueError):
+        graph.add_nodes(indices=15)
+
+
+def test_node_addition_spatial() -> None:
+    graph = DirectedGraph(ndim=2)
+
+    with pytest.raises(ValueError):
+        graph.add_nodes(indices=5, coords=[0, 0], count=1)
+
+    new_index = graph.add_nodes(coords=[2, 2])
+    assert len(graph) == 1
+    assert new_index == 0
+    np.testing.assert_equal(graph.get_coordinates(), [[2, 2]])
+
+    new_index = graph.add_nodes(indices=[10, 11], coords=[[0, 0], [1, 1]])
+    assert len(graph) == 3
+    np.testing.assert_equal(new_index, [10, 11])
+
+    with pytest.raises(ValueError):
+        graph.add_nodes(indices=13)
+
+    with pytest.raises(ValueError):
+        graph.add_nodes(count=2)
 
 
 @pytest.mark.parametrize(
