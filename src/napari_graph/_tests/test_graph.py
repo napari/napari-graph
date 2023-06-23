@@ -206,6 +206,22 @@ class TestGraph:
         assert np.allclose(expected_indices, indices)
         assert np.allclose(expected_edges, edges)
 
+    def test_subgraph_edges(self) -> None:
+        # 3 is disconnected in subgraph
+        nodes_ids = np.asarray([0, 1, 3]) + self._index_shift
+
+        subgraph = self.graph.subgraph_edges(nodes_ids)
+        expected_subgraph = np.asarray([[0, 1]]) + self._index_shift
+
+        np.testing.assert_array_equal(subgraph, expected_subgraph)
+
+        buffer_node_ids = np.asarray([0, 1, 3])
+        buffer_subgraph = self.graph.subgraph_edges(
+            buffer_node_ids, is_buffer_domain=True
+        )
+
+        np.testing.assert_equal(buffer_subgraph, [[0, 1]])
+
 
 class TestDirectedGraph(TestGraph):
     _GRAPH_CLASS = DirectedGraph

@@ -895,3 +895,36 @@ class BaseGraph:
         out_graph.add_edges_from(edges_as_tuples)
 
         return out_graph
+
+    def subgraph_edges(
+        self,
+        node_indices: ArrayLike,
+        is_buffer_domain: bool = False,
+    ) -> ArrayLike:
+        """Returns edges (node pair) where both nodes are presents.
+
+        Parameters
+        ----------
+        nodes_indices : np.ndarray
+            Subset of nodes used for selection.
+        is_buffer_domain : bool
+            When true `node_indices` and returned edges are on buffer domain.
+
+        Returns
+        -------
+        np.ndarray
+            (N x 2) array of nodes indices, where N is the number of valid edges from the induced subgraph.
+        """
+        _, edges = self.get_edges_buffers(is_buffer_domain)
+
+        if is_buffer_domain:
+            mask = np.zeros(self._buffer2world.shape[0], dtype=bool)
+            mask[node_indices] = True
+            subgraph_edges = edges[mask[edges[:, 0]] & mask[edges[:, 1]]]
+
+        else:
+            mask = np.isin(edges, node_indices).all(axis=1)
+            assert mask.shape[0] == edges.shape[0]
+            subgraph_edges = edges[mask]
+
+        return subgraph_edges
