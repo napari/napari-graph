@@ -142,6 +142,11 @@ def test_node_addition_spatial() -> None:
     with pytest.raises(ValueError):
         graph.add_nodes(count=2)
 
+    with pytest.raises(ValueError):
+        graph.add_nodes(indices=[2, 3], coords=[[1, 2]])
+
+    assert len(graph) == 3
+
 
 @pytest.mark.parametrize(
     "graph_type,ndim",

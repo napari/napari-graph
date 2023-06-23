@@ -457,6 +457,11 @@ class BaseGraph:
         buffer_indices = np.flip(self._empty_nodes[-len(indices) :])
 
         if coords is not None:
+            if indices.shape[0] != coords.shape[0]:
+                raise ValueError(
+                    f"`indices` and `coords` must be equal. Found {len(indices)} and {len(coords)}."
+                )
+
             self._coords[buffer_indices] = coords
 
         _update_world2buffer(self._world2buffer, indices, buffer_indices)
