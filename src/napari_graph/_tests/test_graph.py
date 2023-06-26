@@ -1,5 +1,5 @@
 from itertools import product
-from typing import Callable, List, Optional, Type
+from typing import Any, Callable, List, Optional, Protocol, Type
 
 import numpy as np
 import pandas as pd
@@ -76,7 +76,8 @@ def test_directed_edge_addition(n_prealloc_edges: int) -> None:
 
 
 @pytest.mark.parametrize("n_prealloc_nodes", [0, 3, 6, 12])
-def test_node_addition(n_prealloc_nodes: int) -> None:
+def test_node_addition_indices_coords(n_prealloc_nodes: int) -> None:
+    # test node addition with indices and coords and different pre-allocation size
     size = 6
     ndim = 3
 
@@ -85,7 +86,7 @@ def test_node_addition(n_prealloc_nodes: int) -> None:
 
     graph = DirectedGraph(ndim=ndim, n_nodes=n_prealloc_nodes)
     for i in range(size):
-        graph.add_nodes(indices[i], coords[i])
+        graph.add_nodes(indices=indices[i], coords=coords[i])
         assert len(graph) == i + 1
 
     np.testing.assert_allclose(graph._coords[: len(graph)], coords)
@@ -93,6 +94,58 @@ def test_node_addition(n_prealloc_nodes: int) -> None:
     np.testing.assert_array_equal(
         graph._map_world2buffer(indices), range(size)
     )
+
+
+def test_node_addition_non_spatial() -> None:
+    graph = DirectedGraph()
+
+    size = 5
+    new_indices = graph.add_nodes(count=size)
+
+    np.testing.assert_array_equal(new_indices, np.arange(size))
+
+    new_indices = graph.add_nodes(indices=[10, 11])
+    nodes = graph.get_nodes()
+
+    np.testing.assert_equal(new_indices, [10, 11])
+    np.testing.assert_array_equal(nodes[:size], np.arange(size))
+    np.testing.assert_array_equal(nodes[size:], [10, 11])
+
+    with pytest.raises(ValueError):
+        graph.add_nodes(coords=[[0, 1], [2, 3]])
+
+    graph.add_nodes(indices=15)
+    assert len(graph) == 8
+
+    with pytest.raises(ValueError):
+        graph.add_nodes(indices=15)
+
+
+def test_node_addition_spatial() -> None:
+    graph = DirectedGraph(ndim=2)
+
+    with pytest.raises(ValueError):
+        graph.add_nodes(indices=5, coords=[0, 0], count=1)
+
+    new_index = graph.add_nodes(coords=[2, 2])
+    assert len(graph) == 1
+    assert new_index == 0
+    np.testing.assert_equal(graph.get_coordinates(), [[2, 2]])
+
+    new_index = graph.add_nodes(indices=[10, 11], coords=[[0, 0], [1, 1]])
+    assert len(graph) == 3
+    np.testing.assert_equal(new_index, [10, 11])
+
+    with pytest.raises(ValueError):
+        graph.add_nodes(indices=13)
+
+    with pytest.raises(ValueError):
+        graph.add_nodes(count=2)
+
+    with pytest.raises(ValueError):
+        graph.add_nodes(indices=[2, 3], coords=[[1, 2]])
+
+    assert len(graph) == 3
 
 
 @pytest.mark.parametrize(
@@ -104,7 +157,7 @@ def test_empty_graph(graph_type: Type[BaseGraph], ndim: Optional[int]) -> None:
 
 
 class TestGraph:
-    _GRAPH_CLASS: Type[BaseGraph] = ...
+    _GRAPH_CLASS: Type[BaseGraph]
     __test__ = False  # ignored for testing
     _index_shift = 0  # shift used to test special indexing
 
@@ -138,7 +191,9 @@ class TestGraph:
         )
 
     def teardown_method(self, method: Callable) -> None:
-        self.edges, self.coords, self.graph = None, None, None
+        del self.edges, self.graph
+        if hasattr(self, "coords"):
+            del self.coords
 
     def test_edge_buffers(self) -> None:
         # testing buffer correctness on a non-trivial case when a node was removed
@@ -158,8 +213,25 @@ class TestGraph:
         assert np.allclose(expected_indices, indices)
         assert np.allclose(expected_edges, edges)
 
+    def test_subgraph_edges(self) -> None:
+        # 3 is disconnected in subgraph
+        nodes_ids = np.asarray([0, 1, 3]) + self._index_shift
+
+        subgraph = self.graph.subgraph_edges(nodes_ids)
+        expected_subgraph = np.asarray([[0, 1]]) + self._index_shift
+
+        np.testing.assert_array_equal(subgraph, expected_subgraph)
+
+        buffer_node_ids = np.asarray([0, 1, 3])
+        buffer_subgraph = self.graph.subgraph_edges(
+            buffer_node_ids, is_buffer_domain=True
+        )
+
+        np.testing.assert_equal(buffer_subgraph, [[0, 1]])
+
 
 class TestDirectedGraph(TestGraph):
+    graph: DirectedGraph  # required by typing
     _GRAPH_CLASS = DirectedGraph
     __test__ = True
 
@@ -275,7 +347,13 @@ class TestUndirectedGraph(TestGraph):
             ]
 
 
-class NonSpatialMixin:
+class NonSpatialMixin(Protocol):
+    # required by typing
+    _GRAPH_CLASS: Any
+    graph: BaseGraph
+    edges: np.ndarray
+    _index_shift: int
+
     def setup_method(self, method: Callable) -> None:
         self.edges = (
             np.asarray([[0, 1], [1, 2], [2, 3], [3, 4], [4, 0]], dtype=int)

@@ -1,6 +1,9 @@
+from __future__ import annotations
+
 from abc import abstractmethod
 from typing import Callable, List, Optional, Tuple, Union
 
+import networkx as nx
 import numpy as np
 import pandas as pd
 from numba import njit, typed
@@ -138,6 +141,18 @@ def _iterate_edges(
 
 
 @njit
+def _contains_keys(
+    map: typed.Dict,
+    keys: np.ndarray,
+) -> bool:
+    """Returns true if at least one `key` is present on `map`."""
+    for k in keys:
+        if k in map:
+            return True
+    return False
+
+
+@njit
 def _update_world2buffer(
     world2buffer: typed.Dict,
     world_idx: np.ndarray,
@@ -177,9 +192,9 @@ class BaseGraph:
     """
 
     # abstract constants
-    _EDGE_DUPLICATION: int = ...
-    _EDGE_SIZE: int = ...
-    _LL_EDGE_POS: int = ...
+    _EDGE_DUPLICATION: int
+    _EDGE_SIZE: int
+    _LL_EDGE_POS: int
 
     # allocation constants
     _ALLOC_MULTIPLIER = 1.1
@@ -233,7 +248,7 @@ class BaseGraph:
 
         if coords is not None:
             assert self._coords is not None
-            self.add_nodes(coords.index, coords)
+            self.add_nodes(indices=coords.index, coords=coords)
 
         # validate edges
         edges = np.asarray(edges)
@@ -260,7 +275,7 @@ class BaseGraph:
         self._init_edge_buffers(n_edges)
         if len(edges) > 0:
             if coords is None:
-                self.add_nodes(np.unique(edges))
+                self.add_nodes(indices=np.unique(edges))
             self.add_edges(edges)
 
     def _init_node_buffers(self, n_nodes: int) -> None:
@@ -315,6 +330,11 @@ class BaseGraph:
 
         If none is provided it returns the coordinates of every node.
         """
+        if self._coords is None:
+            raise ValueError(
+                "`get_coordinates` is only available for spatial graphs."
+            )
+
         node_indices = self._validate_nodes(node_indices)
         node_indices = self._map_world2buffer(node_indices)
         return self._coords[node_indices]
@@ -355,12 +375,25 @@ class BaseGraph:
         )
         self._empty_nodes = list(reversed(range(prev_size, size)))
 
+    def get_next_valid_indices(self, count: int) -> ArrayLike:
+        if count <= 0:
+            raise ValueError(
+                f"`count` must be a positive integer. Found {count}"
+            )
+
+        next_indices = self._buffer2world.max() + 1
+        return np.arange(next_indices, next_indices + count)
+
     def add_nodes(
         self,
-        indices: ArrayLike,
+        *,
+        indices: Optional[ArrayLike] = None,
         coords: Optional[ArrayLike] = None,
-    ) -> None:
-        """Adds node to graph.
+        count: Optional[int] = None,
+    ) -> ArrayLike:
+        """
+        Add nodes to graph, at least one of the arguments must be supplied.
+        `count` cannot be supplied with other arguments.
 
         Parameters
         ----------
@@ -368,7 +401,32 @@ class BaseGraph:
             Node index.
         coords : np.ndarray
             Node coordinates, optional for non-spatial graph.
+        count : int:
+            Number of nodes to be added.
+
+        Returns
+        -------
+        ArrayLike
+            Added nodes indices.
         """
+        if count is not None and (indices is not None or coords is not None):
+            raise ValueError(
+                "`count` cannot be supplied with `indices` and `coords`."
+            )
+
+        if count is None and indices is None and coords is None:
+            raise ValueError(
+                "One of `indices`, `coords` or `count` must be supplied."
+            )
+
+        if coords is not None:
+            coords = np.atleast_2d(coords)
+
+        if indices is None:
+            if count is None:
+                count = coords.shape[0]
+            indices = self.get_next_valid_indices(count)
+
         indices = np.atleast_1d(indices)
         if indices.ndim > 1:
             raise ValueError(
@@ -382,8 +440,13 @@ class BaseGraph:
                 )
             else:
                 raise ValueError(
-                    "`coords` cannot be provided for non spatial graphs."
+                    "`coords` cannot be provided for non-spatial graphs."
                 )
+
+        if _contains_keys(self._world2buffer, indices):
+            raise ValueError(
+                f"One of the nodes {indices} are already present in the buffer."
+            )
 
         if self.n_empty_nodes < len(indices):
             self._realloc_nodes_buffers(
@@ -393,13 +456,19 @@ class BaseGraph:
         # flipping since _empty_nodes is a stack
         buffer_indices = np.flip(self._empty_nodes[-len(indices) :])
 
-        if self._coords is not None:
-            coords = np.atleast_2d(coords)
+        if coords is not None:
+            if indices.shape[0] != coords.shape[0]:
+                raise ValueError(
+                    f"`indices` and `coords` must be equal. Found {len(indices)} and {len(coords)}."
+                )
+
             self._coords[buffer_indices] = coords
 
-        self._empty_nodes = self._empty_nodes[: -len(indices)]
         _update_world2buffer(self._world2buffer, indices, buffer_indices)
+        self._empty_nodes = self._empty_nodes[: -len(indices)]
         self._buffer2world[buffer_indices] = indices
+
+        return indices
 
     def _get_alloc_size(self, size: int) -> int:
         return int(max(size * self._ALLOC_MULTIPLIER, self._ALLOC_MIN))
@@ -743,3 +812,123 @@ class BaseGraph:
     def __len__(self) -> int:
         """Number of nodes in use."""
         return self.n_nodes
+
+    def initialized_buffer_mask(self) -> np.ndarray:
+        """Compute mask of nodes that have already been initialized.
+
+        Returns
+        -------
+        np.ndarray
+            Boolean array of valid node, it has the same length the buffer.
+        """
+        return self._buffer2world != _NODE_EMPTY_PTR
+
+    @property
+    def coords_buffer(self) -> np.ndarray:
+        """Returns the actual coordinates buffer. It's not a copy."""
+        if self._coords is None:
+            raise ValueError(
+                "graph does not have a `coords` attribute. "
+                "It is not a spatial graph."
+            )
+        return self._coords
+
+    def is_spatial(self) -> bool:
+        """True if self is a spatial graph (has coordinates attribute)."""
+        return self._coords is not None
+
+    @staticmethod
+    def from_networkx(graph: nx.Graph) -> BaseGraph:
+        """Loads a Directed or Undirected napari-graph from a NetworkX graph.
+
+        Parameters
+        ----------
+        graph : nx.Graph
+            The NetworkX graph to be converted.
+        """
+        from napari_graph.directed_graph import DirectedGraph
+        from napari_graph.undirected_graph import UndirectedGraph
+
+        coords_dict = nx.get_node_attributes(graph, "pos")
+        if len(coords_dict) > 0:
+            coords_df = pd.DataFrame.from_dict(coords_dict, orient="index")
+        else:
+            coords_df = None
+
+        edges = graph.edges
+        if len(edges) > 0:
+            edges = np.atleast_2d(edges)
+
+        return (
+            DirectedGraph(edges, coords_df)
+            if graph.is_directed()
+            else UndirectedGraph(edges, coords_df)
+        )
+
+    def to_networkx(self) -> nx.Graph:
+        """Convert it self into NetworkX graph.
+
+        Parameters
+        ----------
+        graph : BaseGraph
+            napari-graph Graph
+
+        Returns
+        -------
+        nx.Graph
+            An equivalent NetworkX graph.
+        """
+        from napari_graph.directed_graph import DirectedGraph
+
+        if isinstance(self, DirectedGraph):
+            out_graph = nx.DiGraph()
+        else:
+            out_graph = nx.Graph()
+
+        if self.is_spatial():
+            for node_id, pos in zip(self.get_nodes(), self.get_coordinates()):
+                out_graph.add_node(node_id, pos=pos)
+        else:
+            out_graph.add_nodes_from(self.get_nodes())
+
+        edges = self.get_edges()
+        if isinstance(edges, list) and len(edges) > 0:
+            edges = np.concatenate(edges, axis=0)
+
+        edges_as_tuples = list(map(tuple, edges))
+        out_graph.add_edges_from(edges_as_tuples)
+
+        return out_graph
+
+    def subgraph_edges(
+        self,
+        node_indices: ArrayLike,
+        is_buffer_domain: bool = False,
+    ) -> ArrayLike:
+        """Returns edges (node pair) where both nodes are presents.
+
+        Parameters
+        ----------
+        nodes_indices : np.ndarray
+            Subset of nodes used for selection.
+        is_buffer_domain : bool
+            When true `node_indices` and returned edges are on buffer domain.
+
+        Returns
+        -------
+        np.ndarray
+            (N x 2) array of nodes indices, where N is the number of valid edges from the induced subgraph.
+        """
+        _, edges = self.get_edges_buffers(is_buffer_domain)
+
+        if is_buffer_domain:
+            mask = np.zeros(self._buffer2world.shape[0], dtype=bool)
+            mask[node_indices] = True
+            subgraph_edges = edges[mask[edges[:, 0]] & mask[edges[:, 1]]]
+
+        else:
+            mask = np.isin(edges, node_indices).all(axis=1)
+            assert mask.shape[0] == edges.shape[0]
+            subgraph_edges = edges[mask]
+
+        return subgraph_edges
