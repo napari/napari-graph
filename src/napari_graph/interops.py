@@ -19,7 +19,7 @@ def to_napari_graph(graph: Any) -> BaseGraph:
     """Generic function to convert "any" graph to a napari-graph.
 
     Supported formats:
-        - napari-graph (it self)
+        - napari-graph (itself)
         - NetworkX
 
     Parameters
