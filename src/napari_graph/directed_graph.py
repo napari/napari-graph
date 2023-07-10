@@ -10,8 +10,8 @@ from napari_graph.base_graph import (
     _iterate_edges,
     _remove_edge,
 )
-from napari_graph.undirected_graph import _UN_EDGE_SIZE
 from napari_graph.numba import njit, typed
+from napari_graph.undirected_graph import _UN_EDGE_SIZE
 
 """
 Directed edge constants for accessing the directed graph buffer data.

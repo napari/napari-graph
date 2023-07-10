@@ -11,7 +11,6 @@ from napari_graph.base_graph import (
 )
 from napari_graph.numba import njit, typed
 
-
 """
 Undirected edge constants for accessing the directed graph buffer data.
 Each edge occupies _UN_EDGE_SIZE spaces on the graph buffer.

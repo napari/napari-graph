@@ -26,20 +26,20 @@ except ImportError:
             return _decorator(func)
 
         return _decorator
-    
+
     class StubList(list):
         @staticmethod
         def empty_list(type) -> list:
             return []
-    
+
     class StubDict(dict):
         @staticmethod
         def empty(key_type, value_type) -> dict:
             return {}
-    
-    class typed:
+
+    class typed:  # type: ignore[no-redef]
         List = StubList
         Dict = StubDict
-    
-    class types:
+
+    class types:  # type: ignore[no-redef]
         int64 = int
