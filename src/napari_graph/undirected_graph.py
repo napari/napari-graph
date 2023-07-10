@@ -1,7 +1,6 @@
 from typing import List, Optional, Tuple, Union
 
 import numpy as np
-from numba import njit, typed
 from numpy.typing import ArrayLike
 
 from napari_graph.base_graph import (
@@ -10,6 +9,8 @@ from napari_graph.base_graph import (
     _iterate_edges,
     _remove_edge,
 )
+from napari_graph.numba import njit, typed
+
 
 """
 Undirected edge constants for accessing the directed graph buffer data.
