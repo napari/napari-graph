@@ -6,9 +6,9 @@ from typing import Callable, List, Optional, Tuple, Union
 import networkx as nx
 import numpy as np
 import pandas as pd
-from numba import njit, typed
-from numba.core import types
 from numpy.typing import ArrayLike
+
+from napari_graph.numba import njit, typed, types
 
 """
 _NODE_EMPTY_PTR is used to fill the values of uninitialized/empty/removed nodes
