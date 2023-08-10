@@ -851,7 +851,7 @@ class BaseGraph:
         from napari_graph.undirected_graph import UndirectedGraph
 
         nodes = np.array(list(graph.nodes()))
-        if not(np.issubdtype(nodes.dtype, np.integer)) or nodes.ndim > 1:
+        if not (np.issubdtype(nodes.dtype, np.integer)) or nodes.ndim > 1:
             graph_int_nodes = nx.convert_node_labels_to_integers(
                 graph, label_attribute='_node_id'
             )

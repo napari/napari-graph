@@ -136,7 +136,7 @@ def test_networkx_non_integer_ids():
     """Check that passing nx graph with non-integer IDs doesn't crash."""
     g = nx.hexagonal_lattice_graph(5, 5, with_positions=True)
     with pytest.warns(UserWarning, match='Node IDs must be integers.'):
-        ng = BaseGraph.from_networkx(g)
+        BaseGraph.from_networkx(g)
 
 
 def test_networkx_basic_roundtrip():
@@ -153,4 +153,3 @@ def test_networkx_basic_roundtrip():
         np.testing.assert_allclose(
             gint.nodes[node]['pos'], g2.nodes[node]['pos']
         )
-
