@@ -899,6 +899,9 @@ class BaseGraph:
 
         if self.is_spatial():
             for node_id, pos in zip(self.get_nodes(), self.get_coordinates()):
+                # note: some nx functions are unhappy with arrays in node
+                # attributes because you can't compare arrays with ==.
+                # So one day we might want to cast to tuple.
                 out_graph.add_node(node_id, pos=pos)
         else:
             out_graph.add_nodes_from(self.get_nodes())
