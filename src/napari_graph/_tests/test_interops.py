@@ -130,3 +130,10 @@ def test_table_like_graphs() -> None:
     not_a_table = np.ones((5, 5, 5))
     with pytest.raises(ValueError):
         graph = to_napari_graph(not_a_table)
+
+
+def test_networkx_non_integer_ids():
+    """Check that passing nx graph with non-integer IDs doesn't crash."""
+    g = nx.hexagonal_lattice_graph(5, 5, with_positions=True)
+    with pytest.warns(UserWarning, match='Node IDs must be integers.'):
+        ng = BaseGraph.from_networkx(g)
