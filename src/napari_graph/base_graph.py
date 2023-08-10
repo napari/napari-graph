@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from abc import abstractmethod
 from typing import Callable, List, Optional, Tuple, Union
 
@@ -849,19 +850,30 @@ class BaseGraph:
         from napari_graph.directed_graph import DirectedGraph
         from napari_graph.undirected_graph import UndirectedGraph
 
-        coords_dict = nx.get_node_attributes(graph, "pos")
+        nodes = np.array(list(graph.nodes()))
+        if not(np.issubdtype(nodes.dtype, np.integer)) or nodes.ndim > 1:
+            graph_int_nodes = nx.convert_node_labels_to_integers(
+                graph, label_attribute='_node_id'
+            )
+            warnings.warn(
+                'Node IDs must be integers. They have been converted '
+                'automatically.'
+            )
+        else:
+            graph_int_nodes = graph
+        coords_dict = nx.get_node_attributes(graph_int_nodes, "pos")
         if len(coords_dict) > 0:
             coords_df = pd.DataFrame.from_dict(coords_dict, orient="index")
         else:
             coords_df = None
 
-        edges = graph.edges
+        edges = graph_int_nodes.edges
         if len(edges) > 0:
             edges = np.atleast_2d(edges)
 
         return (
             DirectedGraph(edges, coords_df)
-            if graph.is_directed()
+            if graph_int_nodes.is_directed()
             else UndirectedGraph(edges, coords_df)
         )
 
