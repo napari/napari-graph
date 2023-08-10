@@ -137,3 +137,20 @@ def test_networkx_non_integer_ids():
     g = nx.hexagonal_lattice_graph(5, 5, with_positions=True)
     with pytest.warns(UserWarning, match='Node IDs must be integers.'):
         ng = BaseGraph.from_networkx(g)
+
+
+def test_networkx_basic_roundtrip():
+    g = nx.hexagonal_lattice_graph(5, 5, with_positions=True)
+    gint = nx.convert_node_labels_to_integers(g)
+    ng = BaseGraph.from_networkx(gint)
+    g2 = ng.to_networkx()
+    # convert positions to tuples because nx comparison tools don't like arrays
+    for node in g2.nodes():
+        g2.nodes[node]['pos'] = tuple(g2.nodes[node]['pos'])
+    assert nx.utils.edges_equal(gint.edges, g2.edges)
+    assert set(gint.nodes) == set(g2.nodes)
+    for node in gint.nodes:
+        np.testing.assert_allclose(
+            gint.nodes[node]['pos'], g2.nodes[node]['pos']
+        )
+
