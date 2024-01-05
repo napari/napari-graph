@@ -380,3 +380,23 @@ class TestDirectedGraphSpecialIndex(TestDirectedGraph):
 
 class TestUndirectedGraphSpecialIndex(TestUndirectedGraph):
     _index_shift = 10
+
+
+@pytest.mark.parametrize(
+    "node_id",
+    [0, 1],
+)
+def test_removing_last_edge_from_digraph(node_id: int) -> None:
+    # regression test from bug reported by James & Draga
+    coords = np.asarray([[0, 0], [20, 20], [100, 100], [120, 120]])
+
+    graph = DirectedGraph(edges=[[0, 1]], coords=coords)
+
+    # removing node 3 is fine since it is not connected to the sole edge
+    graph.remove_node(3)
+
+    # removing either 0 or 1 (source or destination) caused error
+    graph.remove_node(node_id)
+
+    assert graph.n_edges == 0
+    assert graph.n_nodes == 2

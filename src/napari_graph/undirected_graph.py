@@ -251,9 +251,10 @@ def _remove_undirected_incident_edges(
         idx = next_idx
         n_edges -= 1
     else:
-        raise ValueError(
-            "Infinite loop detected at undirected graph node removal, edges buffer must be corrupted."
-        )
+        if idx != _EDGE_EMPTY_PTR:
+            raise ValueError(
+                "Infinite loop detected at undirected graph node removal, edges buffer must be corrupted."
+            )
 
     return empty_idx, n_edges
 
