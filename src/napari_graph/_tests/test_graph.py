@@ -239,18 +239,18 @@ class TestDirectedGraph(TestGraph):
         edge = np.asarray([0, 1]) + self._index_shift
         self.graph.remove_edges(edge)
         assert self.graph.n_edges == 4
-        assert self.graph.n_empty_edges == 1
+        assert self.graph.n_empty_edges == self.graph._ALLOC_MIN - 4
         assert not self.contains(edge, self.graph.get_source_edges())
         assert not self.contains(np.flip(edge), self.graph.get_target_edges())
 
         edges = np.asarray([[1, 2], [2, 3]]) + self._index_shift
         self.graph.remove_edges(edges)
         assert self.graph.n_edges == 2
-        assert self.graph.n_empty_edges == 3
+        assert self.graph.n_empty_edges == self.graph._ALLOC_MIN - 2
         assert not self.contains(edges[0], self.graph.get_source_edges())
         assert not self.contains(edges[1], self.graph.get_source_edges())
 
-        assert self.graph.n_allocated_edges == 5
+        assert self.graph.n_allocated_edges == self.graph._ALLOC_MIN
 
     def test_node_removal(self) -> None:
         nodes = np.asarray([3, 4, 1]) + self._index_shift
@@ -293,18 +293,18 @@ class TestUndirectedGraph(TestGraph):
         edge = np.asarray([0, 1]) + self._index_shift
         self.graph.remove_edges(edge)
         assert self.graph.n_edges == 4
-        assert self.graph.n_empty_edges == 1
+        assert self.graph.n_empty_edges == self.graph._ALLOC_MIN - 4
         assert not self.contains(edge, self.graph.get_edges())
         assert not self.contains(np.flip(edge), self.graph.get_edges())
 
         edges = np.asarray([[1, 2], [2, 3]]) + self._index_shift
         self.graph.remove_edges(edges)
         assert self.graph.n_edges == 2
-        assert self.graph.n_empty_edges == 3
+        assert self.graph.n_empty_edges == self.graph._ALLOC_MIN - 2
         assert not self.contains(edges[0], self.graph.get_edges())
         assert not self.contains(edges[1], self.graph.get_edges())
 
-        assert self.graph.n_allocated_edges == 5
+        assert self.graph.n_allocated_edges == self.graph._ALLOC_MIN
 
         self.assert_empty_linked_list_pairs_are_neighbors()
 
