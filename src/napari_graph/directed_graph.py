@@ -302,9 +302,10 @@ def _remove_directed_incident_edges(
         idx = next_idx
         n_edges -= 1
     else:
-        raise ValueError(
-            "Infinite loop detected at directed graph node removal, edges buffer must be corrupted."
-        )
+        if idx != _EDGE_EMPTY_PTR:
+            raise ValueError(
+                "Infinite loop detected at directed graph node removal, edges buffer must be corrupted."
+            )
 
     return empty_idx, n_edges
 
@@ -473,7 +474,7 @@ class DirectedGraph(BaseGraph):
                 self._empty_edge_idx,
                 self._n_edges,
                 self._edges_buffer,
-                self._node2edges,
+                self._node2edges,  # node2src_edges
                 self._node2tgt_edges,
                 is_target,
             )

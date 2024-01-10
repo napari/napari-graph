@@ -240,6 +240,9 @@ class BaseGraph:
         # initialize nodes
         if n_nodes is None:
             n_nodes = self._ALLOC_MIN
+        else:
+            n_nodes = max(n_nodes, self._ALLOC_MIN)
+
         self._init_node_buffers(n_nodes)
 
         if ndim is not None:
@@ -272,6 +275,8 @@ class BaseGraph:
         else:
             n_edges = len(edges)
 
+        n_edges = max(n_edges, self._ALLOC_MIN)
+
         # initialize edges
         self._init_edge_buffers(n_edges)
         if len(edges) > 0:
@@ -290,6 +295,7 @@ class BaseGraph:
         )
 
     def _init_edge_buffers(self, n_edges: int) -> None:
+        # if condition just to be safe, in case MIN_ALLOC is set to 0
         self._empty_edge_idx = 0 if n_edges > 0 else _EDGE_EMPTY_PTR
         self._n_edges = 0
         self._edges_buffer = np.full(

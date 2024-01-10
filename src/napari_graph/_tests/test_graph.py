@@ -239,18 +239,18 @@ class TestDirectedGraph(TestGraph):
         edge = np.asarray([0, 1]) + self._index_shift
         self.graph.remove_edges(edge)
         assert self.graph.n_edges == 4
-        assert self.graph.n_empty_edges == 1
+        assert self.graph.n_empty_edges == self.graph._ALLOC_MIN - 4
         assert not self.contains(edge, self.graph.get_source_edges())
         assert not self.contains(np.flip(edge), self.graph.get_target_edges())
 
         edges = np.asarray([[1, 2], [2, 3]]) + self._index_shift
         self.graph.remove_edges(edges)
         assert self.graph.n_edges == 2
-        assert self.graph.n_empty_edges == 3
+        assert self.graph.n_empty_edges == self.graph._ALLOC_MIN - 2
         assert not self.contains(edges[0], self.graph.get_source_edges())
         assert not self.contains(edges[1], self.graph.get_source_edges())
 
-        assert self.graph.n_allocated_edges == 5
+        assert self.graph.n_allocated_edges == self.graph._ALLOC_MIN
 
     def test_node_removal(self) -> None:
         nodes = np.asarray([3, 4, 1]) + self._index_shift
@@ -293,18 +293,18 @@ class TestUndirectedGraph(TestGraph):
         edge = np.asarray([0, 1]) + self._index_shift
         self.graph.remove_edges(edge)
         assert self.graph.n_edges == 4
-        assert self.graph.n_empty_edges == 1
+        assert self.graph.n_empty_edges == self.graph._ALLOC_MIN - 4
         assert not self.contains(edge, self.graph.get_edges())
         assert not self.contains(np.flip(edge), self.graph.get_edges())
 
         edges = np.asarray([[1, 2], [2, 3]]) + self._index_shift
         self.graph.remove_edges(edges)
         assert self.graph.n_edges == 2
-        assert self.graph.n_empty_edges == 3
+        assert self.graph.n_empty_edges == self.graph._ALLOC_MIN - 2
         assert not self.contains(edges[0], self.graph.get_edges())
         assert not self.contains(edges[1], self.graph.get_edges())
 
-        assert self.graph.n_allocated_edges == 5
+        assert self.graph.n_allocated_edges == self.graph._ALLOC_MIN
 
         self.assert_empty_linked_list_pairs_are_neighbors()
 
@@ -380,3 +380,24 @@ class TestDirectedGraphSpecialIndex(TestDirectedGraph):
 
 class TestUndirectedGraphSpecialIndex(TestUndirectedGraph):
     _index_shift = 10
+
+
+@pytest.mark.parametrize(
+    "node_id",
+    [0, 1],
+)
+def test_removing_last_edge_from_digraph(node_id: int) -> None:
+    # regression test from bug reported on Zulip:
+    # https://napari.zulipchat.com/#narrow/stream/360030-working-group-graph/topic/Node.20removal.20bug/near/411290388
+    coords = np.asarray([[0, 0], [20, 20], [100, 100], [120, 120]])
+
+    graph = DirectedGraph(edges=[[0, 1]], coords=coords)
+
+    # removing node 3 is fine since it is not connected to the sole edge
+    graph.remove_node(3)
+
+    # removing either 0 or 1 (source or destination) caused error
+    graph.remove_node(node_id)
+
+    assert graph.n_edges == 0
+    assert graph.n_nodes == 2
