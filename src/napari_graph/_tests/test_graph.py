@@ -387,7 +387,8 @@ class TestUndirectedGraphSpecialIndex(TestUndirectedGraph):
     [0, 1],
 )
 def test_removing_last_edge_from_digraph(node_id: int) -> None:
-    # regression test from bug reported by James & Draga
+    # regression test from bug reported on Zulip:
+    # https://napari.zulipchat.com/#narrow/stream/360030-working-group-graph/topic/Node.20removal.20bug/near/411290388
     coords = np.asarray([[0, 0], [20, 20], [100, 100], [120, 120]])
 
     graph = DirectedGraph(edges=[[0, 1]], coords=coords)
