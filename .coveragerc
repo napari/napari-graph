@@ -7,3 +7,13 @@ branch = True
 exclude_lines =
     except ImportError:
     @(abc\.)?abstractmethod
+
+
+[paths]
+source =
+    src/
+    */site-packages
+
+[run]
+source =
+    napari_graph
