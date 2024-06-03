@@ -1,6 +1,8 @@
 # .coveragerc to control coverage.py
 [run]
 branch = True
+source =
+    napari_graph
 
 [report]
 # Regexes for lines to exclude from consideration
@@ -13,7 +15,3 @@ exclude_lines =
 source =
     src/
     */site-packages
-
-[run]
-source =
-    napari_graph
