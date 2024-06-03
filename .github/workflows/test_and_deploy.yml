@@ -116,9 +116,16 @@ jobs:
           pattern: cov-reports-*
           path: coverage
           merge-multiple: true
+      - name: Uproad coverage input
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage_part
+          path: coverage
+          retention-days: 5
+
       - name: combine coverage data
         run: |
-          python -Im coverage combine coverage
+          python -Im coverage combine --debug=pathmap coverage
           python -Im coverage xml -o coverage.xml
           # Report and write to summary.
           python -Im coverage report --format=markdown --skip-empty --skip-covered >> $GITHUB_STEP_SUMMARY
