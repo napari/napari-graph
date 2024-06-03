@@ -163,13 +163,13 @@ def _remove_target_edge(
         ):  # different indexing from source edge
             # skipping found edge from linked list
             if prev_buffer_idx == _EDGE_EMPTY_PTR:
-                node2tgt_edges[
-                    tgt_node
-                ] = next_edge_idx  # different indexing from source edge
+                node2tgt_edges[tgt_node] = (
+                    next_edge_idx  # different indexing from source edge
+                )
             else:
-                edges_buffer[
-                    prev_buffer_idx + _LL_DI_EDGE_POS + 1
-                ] = next_edge_idx
+                edges_buffer[prev_buffer_idx + _LL_DI_EDGE_POS + 1] = (
+                    next_edge_idx
+                )
 
             edges_buffer[buffer_idx + _LL_DI_EDGE_POS + 1] = _EDGE_EMPTY_PTR
             break

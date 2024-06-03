@@ -366,7 +366,7 @@ class NonSpatialMixin(Protocol):
         pytest.skip("Non-spatial graph has no coordinates.")
 
 
-class TestNonSpatialDirectedGraph(NonSpatialMixin, TestDirectedGraph):
+class TestNonSpatialDirectedGraph(NonSpatialMixin, TestDirectedGraph):  # type: ignore[misc]
     pass
 
 
