@@ -3,6 +3,8 @@
 branch = True
 source =
     napari_graph
+omit =
+    */_version.py
 
 [report]
 # Regexes for lines to exclude from consideration
@@ -14,4 +16,4 @@ exclude_lines =
 [paths]
 source =
     src/
-    */site-packages
+    */site-packages/
