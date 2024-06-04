@@ -545,9 +545,9 @@ class BaseGraph:
         ] = np.arange(prev_size + 1, size)
 
         # appends existing empty edges linked list to the end of the new list
-        self._edges_buffer[
-            self._LL_EDGE_POS - self._EDGE_SIZE
-        ] = self._empty_edge_idx
+        self._edges_buffer[self._LL_EDGE_POS - self._EDGE_SIZE] = (
+            self._empty_edge_idx
+        )
         self._empty_edge_idx = prev_size
 
     @property
@@ -744,17 +744,21 @@ class BaseGraph:
 
         if mode.lower() == 'indices':
             edges_data = [
-                self._buffer2world[e].reshape(-1, 2)
-                if len(e) > 0
-                else np.empty((0, 2))
+                (
+                    self._buffer2world[e].reshape(-1, 2)
+                    if len(e) > 0
+                    else np.empty((0, 2))
+                )
                 for e in flat_edges
             ]
         elif mode.lower() == 'coords':
             ndim = self._coords.shape[1]
             edges_data = [
-                self._coords[e].reshape(-1, 2, ndim)
-                if len(e) > 0
-                else np.empty((0, 2, ndim))
+                (
+                    self._coords[e].reshape(-1, 2, ndim)
+                    if len(e) > 0
+                    else np.empty((0, 2, ndim))
+                )
                 for e in flat_edges
             ]
         # NOTE: here `mode` could also query the edges features.
