@@ -1,9 +1,19 @@
 # .coveragerc to control coverage.py
 [run]
 branch = True
+source =
+    napari_graph
+omit =
+    */_version.py
 
 [report]
 # Regexes for lines to exclude from consideration
 exclude_lines =
     except ImportError:
     @(abc\.)?abstractmethod
+
+
+[paths]
+source =
+    src/
+    */site-packages/
