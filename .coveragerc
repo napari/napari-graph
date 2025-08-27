@@ -5,6 +5,7 @@ source =
     napari_graph
 omit =
     */_version.py
+parallel = True
 
 [report]
 # Regexes for lines to exclude from consideration
