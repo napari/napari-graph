@@ -88,6 +88,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: cov-reports-${{ matrix.platform }}-py-${{ matrix.python-version }}
+          include-hidden-files: true
           path: |
             ./.coverage*
 
@@ -114,7 +115,7 @@ jobs:
           pattern: cov-reports-*
           path: coverage
           merge-multiple: true
-      - name: Uproad coverage input
+      - name: Upload coverage input
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: coverage_part
