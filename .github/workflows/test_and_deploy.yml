@@ -89,7 +89,7 @@ jobs:
         with:
           name: cov-reports-${{ matrix.platform }}-py-${{ matrix.python-version }}
           path: |
-            ./.coverage.*
+            ./.coverage*
 
 
   coverage_prepare:
